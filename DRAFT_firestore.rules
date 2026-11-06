@@ -1,0 +1,211 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global hardened primitives
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == "sandeepgarg6375494692@gmail.com") ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function isTeacher() {
+      return isSignedIn() && (
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher')
+      );
+    }
+
+    // Entity validation helpers
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'email', 'displayName', 'role']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.email is string && data.email.size() <= 256 &&
+             data.displayName is string && data.displayName.size() <= 120 &&
+             (data.role == 'student' || data.role == 'teacher' || data.role == 'admin');
+    }
+
+    function isValidStudentProfile(data) {
+      return data.keys().hasAll(['uid', 'lifetimePoints', 'totalTestsAttempted']) &&
+             data.uid is string && data.uid.size() <= 128 &&
+             data.lifetimePoints is number &&
+             data.totalTestsAttempted is number;
+    }
+
+    function isValidTeacherProfile(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'status']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 120 &&
+             data.email is string && data.email.size() <= 256 &&
+             (data.status == 'Approved' || data.status == 'Pending' || data.status == 'Suspended');
+    }
+
+    function isValidTest(data) {
+      return data.keys().hasAll(['id', 'title', 'category', 'subject', 'durationMinutes', 'maxMarks', 'status', 'createdBy']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() <= 200 &&
+             data.durationMinutes is number && data.durationMinutes > 0 &&
+             data.maxMarks is number && data.maxMarks > 0 &&
+             data.createdBy is string && data.createdBy.size() <= 128;
+    }
+
+    function isValidQuestion(data) {
+      return data.keys().hasAll(['id', 'statement', 'options', 'correctAnswer', 'subject', 'marks']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.statement is string && data.statement.size() <= 2000 &&
+             data.options is map &&
+             data.options.A is string && data.options.A.size() <= 500 &&
+             data.options.B is string && data.options.B.size() <= 500 &&
+             data.options.C is string && data.options.C.size() <= 500 &&
+             data.options.D is string && data.options.D.size() <= 500 &&
+             (data.correctAnswer == 'A' || data.correctAnswer == 'B' || data.correctAnswer == 'C' || data.correctAnswer == 'D') &&
+             data.marks is number;
+    }
+
+    function isValidAttempt(data) {
+      return data.keys().hasAll(['id', 'testId', 'studentId', 'obtainedMarks', 'maxMarks', 'submittedAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.testId is string && data.testId.size() <= 128 &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             data.obtainedMarks is number &&
+             data.maxMarks is number;
+    }
+
+    function isValidBookmark(data) {
+      return data.keys().hasAll(['id', 'userId', 'questionId']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.questionId is string && data.questionId.size() <= 128;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['id', 'title', 'message', 'targetAudience', 'isActive']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() <= 200 &&
+             data.message is string && data.message.size() <= 1000;
+    }
+
+    function isValidSubject(data) {
+      return data.keys().hasAll(['id', 'name', 'topics']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 120 &&
+             data.topics is list;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['id', 'actor', 'action', 'target', 'status']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.actor is string && data.actor.size() <= 120 &&
+             data.action is string && data.action.size() <= 200 &&
+             data.target is string && data.target.size() <= 200;
+    }
+
+    // 1. Users Collection (PII isolation)
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming());
+      allow update: if isValidId(userId) && (isOwner(userId) || isAdmin()) && isValidUser(incoming()) && incoming().id == existing().id;
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // 2. Student Profiles
+    match /studentProfiles/{studentId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(studentId) && isOwner(studentId) && isValidStudentProfile(incoming());
+      allow update: if isValidId(studentId) && (isOwner(studentId) || isAdmin()) && isValidStudentProfile(incoming());
+      allow delete: if isValidId(studentId) && isAdmin();
+    }
+
+    // 3. Teacher Profiles
+    match /teacherProfiles/{teacherId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(teacherId) && isOwner(teacherId) && isValidTeacherProfile(incoming());
+      allow update: if isValidId(teacherId) && (isOwner(teacherId) || isAdmin()) && isValidTeacherProfile(incoming());
+      allow delete: if isValidId(teacherId) && isAdmin();
+    }
+
+    // 4. Tests Collection
+    match /tests/{testId} {
+      allow get: if existing().status == 'Published' || isTeacher() || isAdmin();
+      allow list: if resource.data.status == 'Published' || isTeacher() || isAdmin();
+      allow create: if isValidId(testId) && (isTeacher() || isAdmin()) && isValidTest(incoming());
+      allow update: if isValidId(testId) && (isAdmin() || (isTeacher() && existing().createdBy == request.auth.uid)) && isValidTest(incoming());
+      allow delete: if isValidId(testId) && isAdmin();
+    }
+
+    // 5. Questions Collection
+    match /questions/{questionId} {
+      allow get, list: if isSignedIn();
+      allow create: if isValidId(questionId) && (isTeacher() || isAdmin()) && isValidQuestion(incoming());
+      allow update: if isValidId(questionId) && (isTeacher() || isAdmin()) && isValidQuestion(incoming());
+      allow delete: if isValidId(questionId) && isAdmin();
+    }
+
+    // 6. Test Attempts (One Attempt Policy)
+    match /testAttempts/{attemptId} {
+      allow get: if isSignedIn() && (existing().studentId == request.auth.uid || isAdmin() || isTeacher());
+      allow list: if isSignedIn() && (resource.data.studentId == request.auth.uid || isAdmin());
+      allow create: if isValidId(attemptId) && isSignedIn() && incoming().studentId == request.auth.uid && isValidAttempt(incoming());
+      allow update: if isValidId(attemptId) && isAdmin();
+      allow delete: if isValidId(attemptId) && isAdmin();
+    }
+
+    // 7. Bookmarks Collection
+    match /bookmarks/{bookmarkId} {
+      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isValidId(bookmarkId) && isSignedIn() && incoming().userId == request.auth.uid && isValidBookmark(incoming());
+      allow delete: if isValidId(bookmarkId) && isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    // 8. Notifications Collection
+    match /notifications/{notificationId} {
+      allow get, list: if isSignedIn();
+      allow write: if isValidId(notificationId) && isAdmin() && isValidNotification(incoming());
+    }
+
+    // 9. Subjects Collection
+    match /subjects/{subjectId} {
+      allow get, list: if isSignedIn();
+      allow write: if isValidId(subjectId) && isAdmin() && isValidSubject(incoming());
+    }
+
+    // 10. Audit Logs Collection
+    match /auditLogs/{logId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidId(logId) && isSignedIn() && isValidAuditLog(incoming());
+      allow update, delete: if false; // Audit logs are immutable!
+    }
+  }
+}

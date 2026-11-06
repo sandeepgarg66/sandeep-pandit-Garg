@@ -1,0 +1,847 @@
+STEP 6 — ADMIN PANEL & COMPLETE WEBSITE CONTROL
+Continue building the existing Sanskar-X-NarutoQuiz project.
+1. Main Objective
+Create a complete, professional Admin Panel that allows the Admin to manage and control the entire examination platform.
+Maintain the existing Premium Dark Glass UI design system:
+Main Background: #0B0F19
+Secondary Background: #111827
+Naruto Orange: #FF8C32
+White Primary Text
+Muted Secondary Text
+Glass Cards and Borders
+Inter and Noto Sans Devanagari fonts
+The Admin Panel must look professional, clean, modern, and suitable for a serious examination platform.
+2. Admin Dashboard
+Create a dashboard showing:
+Total Students
+Total Teachers
+Total Tests
+Published Tests
+Pending Test Approvals
+Total Questions
+Total Test Attempts
+Active Users
+Include:
+Recent Activities
+Pending Approvals
+Recently Created Tests
+Recent Student Registrations
+Platform Overview
+Use clean statistic cards, charts, and tables.
+3. Admin Sidebar Navigation
+Create these navigation items:
+Dashboard
+Student Management
+Teacher Management
+Test Management
+Test Approvals
+Question Bank
+Subject & Topic Management
+PYQ Management
+Results & Attempts
+Leaderboard Management
+Notifications
+Homepage Management
+Reports & Analytics
+Admin Activity Logs
+Settings
+Profile
+Logout
+4. Student Management
+Admin should be able to:
+View all registered students.
+Search students by name, email, or ID.
+Filter students by status.
+View student profile and performance.
+Activate or deactivate student accounts.
+Block or unblock students.
+View test attempts and results.
+View leaderboard position.
+5. Teacher Management
+Admin should be able to:
+View all teachers.
+Search and filter teachers.
+View teacher profiles.
+Approve or reject teacher requests.
+Activate or deactivate teacher accounts.
+Block or unblock teachers.
+View tests created by each teacher.
+View teacher activity.
+6. Test Management
+Create a complete test management section.
+Admin can:
+View all tests.
+Create a new test.
+Edit test details.
+Publish or unpublish tests.
+Schedule tests.
+Archive tests.
+Delete tests with confirmation.
+Filter tests by category, subject, teacher, and status.
+Test categories:
+Daily Test
+Weekly Test
+Mock Test
+PYQ Test
+Chapter Test
+Subject-wise Test
+Test statuses:
+Draft
+Pending Approval
+Approved
+Published
+Scheduled
+Unpublished
+Archived
+Rejected
+7. Test Approval System
+Create a dedicated approval page.
+When a teacher submits a test for approval, Admin can:
+Preview the complete test.
+Review all questions and answer keys.
+Approve the test.
+Reject the test with a reason.
+Send it back for correction.
+Publish an approved test.
+View approval history.
+Only approved tests should be eligible for publication according to the platform's permissions.
+8. Question Bank Management
+Admin should be able to:
+View all questions.
+Add new questions.
+Edit and delete questions.
+Search and filter questions.
+Organize questions by subject and topic.
+Review question difficulty.
+Manage explanations and correct answers.
+Identify duplicate questions.
+Import questions in bulk if supported by the existing project.
+IMPORTANT MCQ RULE:
+Teachers and Admin create only four factual options: A, B, C, D.
+Option E is reserved for students as "अनुत्तरित / No Response".
+Option E must never be treated as a fifth factual answer.
+Correct answers can only be A, B, C, or D.
+9. Subject & Topic Management
+Create a management section where Admin can:
+Add, edit, and delete subjects.
+Add, edit, and delete topics.
+Organize chapters under subjects.
+Assign questions and tests to subjects and topics.
+Manage subject-wise test categories.
+10. PYQ Management
+Create a dedicated Previous Year Questions management section.
+Admin can:
+Add PYQ questions.
+Select exam name and year.
+Assign subject and topic.
+Edit questions and answer explanations.
+Organize PYQs by examination and year.
+Publish approved PYQ question sets.
+11. Test Rules & Configuration
+Allow Admin to configure test rules:
+Test duration.
+Total questions.
+Marks per correct answer.
+Negative marking ON/OFF.
+Marks deducted for wrong answers.
+Unattempted question marks.
+Test start and end date.
+Test availability.
+Answer review permission.
+IMPORTANT:
+Each student gets only ONE attempt per test.
+One Student + One Test = One Attempt.
+Do not allow students to take the same test again.
+This rule must eventually be enforced by the backend, not only by hiding the Start button.
+Option E (No Response) is treated as unanswered and receives no negative marking.
+12. Leaderboard Management
+Create separate management sections for:
+Daily Leaderboard
+Daily points and rankings.
+Daily ranking overview.
+Weekly Leaderboard
+Weekly points and rankings.
+Weekly ranking overview.
+Global Leaderboard
+Lifetime points.
+Permanent rankings.
+Overall student performance.
+Global points can include eligible published:
+Daily Tests
+Weekly Tests
+Mock Tests
+PYQ Tests
+Chapter Tests
+Subject-wise Tests
+Private Practice scores must NOT contribute to Global Leaderboard points.
+Do not mix Daily, Weekly, and Global rankings.
+13. Results & Attempts Management
+Admin can:
+View all test attempts.
+Search by student or test.
+View individual student results.
+View correct, wrong, and unanswered counts.
+View marks and accuracy.
+View test completion time.
+Review suspicious or incomplete attempts.
+Export reports if supported.
+Do not allow Admin actions to silently change historical scores. Any correction must be traceable.
+14. Notifications Management
+Create a notification management page.
+Admin can:
+Create notifications.
+Edit notifications.
+Delete notifications.
+Publish important announcements.
+Select target audience: All Users, Students, or Teachers.
+View notification status.
+Avoid unnecessary promotional notifications.
+15. Homepage Management
+Allow Admin to manage homepage content:
+Featured tests.
+Important announcements.
+Daily Quiz Challenge.
+Test categories.
+Featured subjects.
+Homepage notification banners.
+Keep the existing homepage layout and design consistent.
+16. Reports & Analytics
+Create an analytics page showing:
+Student registration trends.
+Test participation.
+Test completion rates.
+Average marks.
+Highest and lowest scores.
+Subject-wise performance.
+Teacher activity.
+Daily and weekly platform usage.
+Use readable charts and tables.
+17. Admin Activity Logs
+Create an activity log that displays:
+Admin actions.
+Test approvals and rejections.
+Test publishing and unpublishing.
+Student and teacher account changes.
+Question bank changes.
+Notification changes.
+Date and time of each action.
+18. Admin Settings & Profile
+Include:
+Admin profile.
+Name and profile image.
+Email.
+Password settings UI.
+Platform settings.
+Examination settings.
+Notification settings.
+19. UI/UX Requirements
+Fully responsive for desktop, tablet, and mobile.
+Professional sidebar navigation.
+Clean data tables.
+Search and filters.
+Confirmation dialogs for destructive actions.
+Loading, empty, success, and error states.
+Consistent buttons, forms, cards, and modals.
+Smooth and lightweight animations.
+Avoid unnecessary visual clutter.
+20. Important Development Restrictions
+For this step:
+Build the Admin Panel frontend only.
+Use realistic mock data.
+Do not connect Firebase or Firestore yet.
+Do not implement real authentication or backend permissions yet.
+Do not create duplicate Student or Teacher panels.
+Do not redesign the existing Homepage.
+Do not break previously completed steps.
+Reuse existing design components wherever possible.
+Keep the code modular and organized.
+FINAL REQUIREMENT
+After completing Step 6, the project should have a complete Admin Panel UI with all major website management sections.
+Do not start Step 7 automatically. Stop after completing Step 6 and provide a summary of the pages and components created.
+Add Firebase to my app
+FINAL MASTER PROMPT
+PROJECT: SANSKAR-X-NARUTOQUIZ
+Complete Firebase Backend + Mobile App + Existing Website Integration
+You are an expert Full-Stack Developer, Firebase Architect, Database Engineer, Android Developer, and Application Security Engineer.
+I am building an educational MCQ examination platform named:
+Sanskar-X-NarutoQuiz
+I have already been developing its website with ChatGPT and Codex. Now I want to develop its mobile application using Firebase Studio.
+My ultimate goal is to operate ONE educational platform through TWO different frontends:
+Existing Website: Sanskar-X-NarutoQuiz
+New Mobile Application: Sanskar-X-NarutoQuiz
+Both must use exactly the same Firebase project, database, authentication system, storage, and backend business logic.
+PART 1 — UNDERSTAND MY EXISTING PROJECT
+My existing website project:
+Project Name: Sanskar-X-NarutoQuiz
+Existing technology:
+Next.js
+TypeScript
+Tailwind CSS
+Firebase
+Recharts
+The website is already under development with ChatGPT and Codex.
+IMPORTANT:
+Do not create a replacement website.
+Do not create another independent website.
+Do not redesign my existing website.
+Do not delete existing pages or components.
+Do not overwrite existing functionality.
+Do not create duplicate database collections.
+First inspect the available project files and existing architecture.
+If my existing website source code is not accessible in this workspace, ask me to provide its GitHub repository or source files.
+Do not pretend you have accessed my ChatGPT conversations or files if they are not available.
+Preserve the existing website exactly as it is unless a modification is necessary for Firebase integration.
+PART 2 — DEVELOP THE MOBILE APPLICATION
+Develop a mobile application for Sanskar-X-NarutoQuiz.
+The mobile application must have its own mobile-friendly interface while maintaining the same educational functionality as the existing website.
+Create the required mobile screens:
+Splash Screen
+Login
+Registration
+Forgot Password
+Student Dashboard
+Teacher Dashboard
+Admin Dashboard
+Subject Selection
+Topic Selection
+MCQ Examination
+Test Instructions
+Test Results
+Performance Analysis
+Profile
+Notifications
+Settings
+Do not unnecessarily copy the website layout into the mobile application.
+The mobile application should have a proper responsive mobile interface.
+PART 3 — ONE COMMON FIREBASE PROJECT
+This is the most important requirement.
+Use ONE Firebase project for both the existing website and the new mobile application.
+Configure separate app registrations inside the same Firebase project:
+Web Application
+Android Application
+Both applications must use the same Firebase project ID.
+Enable and configure the required Firebase services:
+Firebase Authentication
+Cloud Firestore
+Firebase Storage
+Cloud Functions
+Firestore Security Rules
+Firestore Indexes
+Firebase App Check
+Firebase Cloud Messaging
+Firebase Analytics, where appropriate
+Firebase Hosting, if required for the website
+Do not create separate Firebase projects or separate databases.
+Use existing Firebase configuration wherever possible.
+Do not overwrite existing production data.
+PART 4 — SHARED DATABASE ARCHITECTURE
+First inspect my existing Firestore database and identify its current collections and document structures.
+My planned collections include:
+users
+categories
+subjects
+topics
+chapters
+questions
+question_shares
+tests
+test_attempts
+results
+groups
+group_members
+notifications
+leaderboard
+activity_logs
+subscriptions
+appSettings
+Preserve existing collection names and field structures wherever they are already implemented.
+Create only missing collections and fields.
+Use Firebase Authentication UID as the common identity for both platforms.
+Use consistent document IDs, field types, timestamps, and data relationships.
+Create a clear and maintainable shared database architecture.
+PART 5 — COMMON AUTHENTICATION SYSTEM
+Implement one shared authentication system.
+Users registered on the website must be able to log in to the mobile application using the same account.
+Users registered through the mobile application must be able to log in to the website using the same account.
+Implement:
+Email and Password Login
+Student Registration
+Teacher Account Management
+Admin Authentication
+Password Reset
+Email Verification
+Persistent Login
+Logout
+Protected Routes
+Role-Based Navigation
+Roles:
+Student
+Teacher
+Admin
+Never allow users to assign themselves Teacher or Admin privileges.
+Role assignment must be handled through secure administrative backend operations.
+PART 6 — STUDENT FEATURES
+Connect all student functionality to the shared Firebase backend.
+Implement:
+Student Profile
+Available Subjects
+Topic-Wise MCQs
+Chapter-Wise MCQs
+Online Tests
+Test Instructions
+Test Timer
+Answer Selection
+Test Submission
+Automatic Result Generation
+Correct and Incorrect Answers
+Detailed Explanations
+Test History
+Performance Analysis
+Bookmarked Questions
+Progress Tracking
+Leaderboard
+Students must only access their authorized personal information.
+PART 7 — TEACHER FEATURES
+Implement:
+Teacher Dashboard
+Create MCQ Questions
+Edit Questions
+Delete Authorized Questions
+Add Four Answer Options
+Set Correct Answers
+Add Detailed Explanations
+Upload Question Images
+Create Tests
+Assign Subjects and Topics
+Manage Educational Content
+View Permitted Student Performance
+Teacher permissions must be enforced through secure backend authorization.
+PART 8 — ADMIN FEATURES
+Implement:
+Admin Dashboard
+Student Management
+Teacher Management
+Role Management
+Subject Management
+Topic Management
+Chapter Management
+Question Management
+Test Management
+Group Management
+Notification Management
+Subscription Management
+Application Settings
+Platform Statistics
+Report Management
+Admin privileges must be verified on the server side.
+PART 9 — SHARED MCQ EXAMINATION ENGINE
+Both platforms must use the same examination engine and database structure.
+Implement:
+Question Loading
+Random Question Selection
+Configurable Test Duration
+Answer Selection
+Previous and Next Navigation
+Question Marking for Review
+Test Submission
+Automatic Score Calculation
+Negative Marking Configuration
+Correct Answer Validation
+Detailed Result Generation
+Test Attempt History
+Duplicate Submission Protection
+Official scoring must happen through trusted backend logic.
+Do not expose correct answers before submission when test integrity requires them to remain private.
+PART 10 — SHARED FIREBASE STORAGE
+Use the same Firebase Storage for both applications.
+Store:
+Student Profile Images
+Teacher Profile Images
+MCQ Images
+Explanation Images
+Educational Content Images
+Both platforms must be able to retrieve the same authorized images.
+Implement file type validation, size limits, and secure access rules.
+PART 11 — REAL-TIME DATA SYNCHRONIZATION
+This is a mandatory requirement.
+Both platforms must stay synchronized.
+Examples:
+Admin creates a question on the website → It appears in the mobile application.
+Admin creates a question on the mobile application → It appears on the website.
+Teacher creates a test on the website → It becomes available on the mobile application.
+Student registers on the website → The same account works on the mobile application.
+Student submits a test on the mobile application → The result appears on the website.
+Student submits a test on the website → The result appears on the mobile application.
+Admin updates a subject → Both platforms show the updated subject.
+User updates their profile → Both platforms show the updated profile.
+Use Firestore real-time listeners wherever appropriate.
+Avoid unnecessary reads and writes to control Firebase costs.
+PART 12 — COMMON BACKEND LOGIC
+Do not implement sensitive business logic independently in both frontends.
+Use Cloud Functions or trusted backend services for:
+Role Verification
+Test Submission
+Score Calculation
+Result Generation
+Permission Validation
+Administrative Operations
+Notifications
+Both platforms must follow the same business rules.
+PART 13 — SECURITY AND DATA PROTECTION
+Create secure Firestore and Storage Security Rules.
+Requirements:
+Students cannot modify official results.
+Students cannot modify other users' profiles.
+Teachers can manage only authorized content.
+Only Admins can assign roles.
+Unauthorized users cannot access protected information.
+Test submissions must be validated.
+Sensitive operations must be performed through trusted backend logic.
+Never expose private keys or service-account credentials in frontend code.
+Never use unrestricted public read/write rules.
+Configure Firebase App Check where supported.
+PART 14 — TEST BOTH PLATFORMS
+Perform actual integration testing.
+Test the following:
+Student registration on website.
+Login using the same account on mobile.
+Student registration on mobile.
+Login using the same account on website.
+Question creation on website and verification on mobile.
+Question creation on mobile and verification on website.
+Test creation and availability on both platforms.
+Test submission and result synchronization.
+Profile synchronization.
+Teacher permissions.
+Admin permissions.
+Image upload and retrieval.
+Unauthorized access prevention.
+Duplicate submission prevention.
+Do not claim that synchronization works without testing it.
+PART 15 — DEVELOPMENT AND EXECUTION ORDER
+Follow this exact development sequence:
+PHASE 1:
+Inspect the existing Firebase configuration and mobile project.
+PHASE 2:
+Inspect the existing Sanskar-X-NarutoQuiz website source code.
+PHASE 3:
+Understand existing collections, database structures, and authentication.
+PHASE 4:
+Prepare a unified Firebase architecture.
+PHASE 5:
+Configure all required Firebase services.
+PHASE 6:
+Develop and connect the mobile application.
+PHASE 7:
+Connect the existing website to the same Firebase project.
+PHASE 8:
+Implement shared authentication and permissions.
+PHASE 9:
+Implement the shared MCQ examination system.
+PHASE 10:
+Test real-time synchronization between both platforms.
+PHASE 11:
+Fix errors and prepare deployment.
+PART 16 — BILLING AND MANUAL APPROVAL
+Before enabling paid Firebase services, activating billing, or performing destructive operations:
+Explain why the action is required.
+Show any potential costs.
+Ask for my approval.
+Do not delete or overwrite existing data.
+If a service requires manual configuration in Firebase Console, provide exact step-by-step instructions.
+FINAL OBJECTIVE
+My final platform must be:
+PROJECT NAME: Sanskar-X-NarutoQuiz
+EXISTING WEBSITE: Next.js + TypeScript
+NEW MOBILE APPLICATION: Firebase Studio
+BACKEND: One Firebase Project
+DATABASE: One Shared Cloud Firestore
+AUTHENTICATION: One Shared Firebase Authentication System
+STORAGE: One Shared Firebase Storage
+BUSINESS LOGIC: Shared Backend Services
+RESULT: Two Independent Frontends + One Unified Backend.
+Both platforms must work independently while sharing the same users, questions, subjects, tests, results, and other application data.
+START EXECUTION NOW
+First inspect the existing project and its Firebase configuration.
+Do not immediately generate a duplicate project.
+If you cannot access the existing website source code, ask me to provide it.
+Work step by step, preserve all existing functionality, make actual code changes, test every important integration, and provide a final implementation report.
+Never claim a feature is completed unless it has actually been implemented and tested.# STEP 7 — FIREBASE BACKEND, AUTHENTICATION & DATABASE ARCHITECTURE
+Continue the existing Sanskar-X-NarutoQuiz project.
+The Homepage, Student Panel, Teacher Panel, MCQ Test Interface, and Admin Panel have already been designed.
+Now establish the real backend using Firebase.
+1. First Analyze the Existing Project
+Before making changes:
+Inspect the existing project structure.
+Identify all existing pages and components.
+Identify mock data currently used.
+Review existing navigation and state management.
+Preserve the existing Premium Dark Glass UI.
+Do not redesign completed pages.
+Prepare a backend integration plan before implementation.
+Do not unnecessarily rewrite existing components.
+2. Firebase Services
+Use:
+Firebase Authentication
+Cloud Firestore
+Firebase Storage
+Firebase Cloud Functions where server-side operations are required.
+Use the official Firebase SDK and follow the existing project's framework and architecture.
+Do not expose Firebase Admin credentials or private secrets in frontend code.
+3. Authentication System
+Implement real authentication:
+Student
+Student registration.
+Login.
+Logout.
+Forgot password.
+Email verification where applicable.
+User profile creation.
+Teacher
+Teacher registration or application.
+Teacher login.
+Teacher approval status.
+Access only after Admin approval.
+Admin
+Secure Admin login.
+Admin role verification.
+Restricted Admin Panel access.
+IMPORTANT:
+Never trust a role selected by the user during registration.
+Students must not be able to assign themselves Teacher or Admin roles.
+Admin privileges must be granted through a secure trusted process.
+Protect routes according to authenticated user roles.
+4. Firestore Database Architecture
+Create a clean and scalable Firestore structure.
+Suggested collections:
+users
+Store:
+uid
+name
+email
+photoURL
+role
+accountStatus
+createdAt
+updatedAt
+studentProfiles
+Store:
+studentId
+totalTestsAttempted
+totalQuestionsSolved
+averageAccuracy
+lifetimePoints
+currentGlobalRank
+teacherProfiles
+Store:
+teacherId
+qualification
+approvalStatus
+createdTests
+createdAt
+tests
+Store:
+testId
+title
+description
+category
+subject
+topic
+duration
+totalQuestions
+marksPerCorrect
+negativeMarkingEnabled
+negativeMarks
+startDate
+endDate
+status
+createdBy
+approvedBy
+createdAt
+questions
+Store:
+questionId
+questionText
+imageURL
+options A, B, C, D
+correctAnswer
+explanation
+subject
+topic
+difficulty
+marks
+IMPORTANT:
+Option E is not a factual answer. It represents "No Response" only in the student examination interface.
+testAttempts
+Store:
+attemptId
+studentId
+testId
+answers
+attemptedQuestions
+correctCount
+wrongCount
+unansweredCount
+totalMarks
+accuracy
+startedAt
+submittedAt
+status
+bookmarks
+Store:
+studentId
+questionId
+savedAt
+notifications
+Store:
+notificationId
+title
+message
+targetAudience
+createdAt
+status
+subjects
+Store:
+subjectId
+subjectName
+topics
+status
+activityLogs
+Store:
+userId
+action
+targetType
+targetId
+timestamp
+This is a suggested starting structure. Adjust it where necessary for Firestore scalability, security, and query performance. Avoid duplicating large question documents unnecessarily.
+5. Role-Based Access Control
+Implement secure access rules.
+Student
+Read published and available tests.
+Read permitted questions.
+Access only their own profile and results.
+Manage their own bookmarks.
+Cannot publish or modify tests.
+Cannot access Admin or Teacher data without permission.
+Teacher
+Create and manage their own test drafts.
+Edit tests they are authorized to manage.
+Submit tests for Admin approval.
+View results only for authorized tests.
+Cannot approve or publish their own tests unless explicitly authorized.
+Admin
+Manage students and teachers.
+Approve or reject tests.
+Manage questions and subjects.
+Manage notifications.
+Manage platform content.
+Access authorized reports and administrative functions.
+Create Firestore Security Rules that enforce these permissions on the server side.
+Do not rely only on frontend route protection.
+6. Teacher Test Approval Workflow
+Connect the Teacher and Admin panels to Firestore.
+Workflow:
+Teacher creates a test.
+Test is saved as Draft.
+Teacher submits it for approval.
+Status changes to Pending Approval.
+Admin reviews the test.
+Admin approves or rejects it.
+Approved tests can be published.
+Published tests become visible to eligible students.
+Maintain approval history and rejection reasons.
+7. One Attempt Per Student Per Test
+This is a critical examination rule.
+One Student + One Test = One Attempt.
+Implement secure backend enforcement:
+Prevent duplicate attempts.
+Validate attempt creation on the server.
+Prevent students from modifying their final marks.
+Prevent students from changing submitted answers.
+Validate test availability and attempt status.
+Store authoritative timestamps.
+Handle simultaneous requests safely.
+Do not enforce this rule only through frontend buttons or local storage.
+8. Secure Result Calculation
+Students must not be able to submit their own marks or correct answer counts.
+Calculate results through trusted server-side logic.
+Rules:
+Correct answer: positive marks.
+Wrong answer: apply configured negative marking.
+Unanswered: no marks and no negative marking.
+Option E: treated as unanswered.
+Correct answers must be verified against trusted question data.
+Submitted results must be stored securely.
+9. Leaderboard Database Foundation
+Prepare the database for three separate leaderboards:
+Daily Leaderboard
+Weekly Leaderboard
+Global Leaderboard
+Rules:
+Daily rankings use daily eligible test results.
+Weekly rankings use weekly eligible test results.
+Global rankings use lifetime points from eligible published tests.
+Private Practice scores must not contribute to Global points.
+Keep all three ranking systems separate.
+Use server-side aggregation or trusted backend functions for score updates.
+Do not calculate authoritative leaderboard points from untrusted frontend values.
+10. Firebase Storage
+Prepare secure storage for:
+Student profile images.
+Teacher profile images.
+Question images.
+Other permitted examination assets.
+Validate file types and file sizes.
+Do not allow unauthorized users to overwrite other users' files.
+11. Data Validation & Error Handling
+Implement:
+Required field validation.
+Invalid data protection.
+Duplicate record prevention.
+Authentication error handling.
+Firestore permission error handling.
+Loading states.
+Empty states.
+Network error handling.
+Use clear messages in the existing UI.
+12. Performance & Scalability
+Use pagination for large lists.
+Avoid unnecessary Firestore reads.
+Use appropriate indexes.
+Avoid downloading all questions at once.
+Fetch only required leaderboard entries.
+Use efficient queries.
+Avoid duplicate listeners.
+Clean up real-time listeners when components are removed.
+13. Environment & Configuration
+Configure Firebase using environment variables where appropriate.
+Keep private credentials out of frontend code.
+Document Firebase setup requirements.
+Document required Firestore indexes.
+Document deployment requirements for Cloud Functions and Security Rules.
+14. Development Restrictions
+Do not redesign existing UI.
+Do not remove previously completed features.
+Do not break existing navigation.
+Replace mock data only where the real Firebase integration is ready.
+Do not leave critical security operations dependent on frontend code.
+Do not claim a feature is connected until it has been tested.
+Do not create unnecessary collections or duplicate data.
+If Firebase project credentials or configuration are unavailable, prepare the integration structure and clearly identify what configuration is still required. Do not invent credentials.
+FINAL REQUIREMENT
+After completing Step 7:
+Authentication should work with Firebase.
+User roles should be securely managed.
+Firestore database structure should be established.
+Teacher approval workflow should be connected.
+Test and attempt data architecture should be ready.
+Security Rules should be prepared and tested.
+Existing UI should continue working.
+At the end, provide:
+Firebase services configured.
+Collections created.
+Security Rules status.
+Features successfully connected.
+Features still using mock data.
+Any setup required from the project owner.
+Do not start Step 8 automatically.

@@ -1,0 +1,588 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Authenticated user identity with assigned role and profile metadata",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "Primary contact email address",
+          "maxLength": 256
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Candidate or educator full name",
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "description": "Access control role",
+          "enum": ["student", "teacher", "admin"]
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Avatar image URL",
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of account creation"
+        }
+      },
+      "required": ["id", "email", "displayName", "role"]
+    },
+    "StudentProfile": {
+      "title": "StudentProfile",
+      "description": "Academic progression, points, and test statistics for candidate",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "User UID matching auth credentials",
+          "maxLength": 128
+        },
+        "rankTitle": {
+          "type": "string",
+          "description": "Honorary shinobi title e.g. Special Jonin",
+          "maxLength": 80
+        },
+        "totalTestsAttempted": {
+          "type": "number",
+          "description": "Total competitive tests taken"
+        },
+        "totalQuestionsSolved": {
+          "type": "number",
+          "description": "Cumulative questions solved"
+        },
+        "averageAccuracy": {
+          "type": "number",
+          "description": "Percentage accuracy across tests"
+        },
+        "lifetimePoints": {
+          "type": "number",
+          "description": "Global points earned strictly from eligible published tests"
+        },
+        "currentDailyPoints": {
+          "type": "number",
+          "description": "Points earned in current 24-hr daily sprint"
+        },
+        "currentWeeklyPoints": {
+          "type": "number",
+          "description": "Points earned in current 7-day weekly cycle"
+        },
+        "currentGlobalRank": {
+          "type": "number",
+          "description": "Global standing among all candidates"
+        },
+        "streakDays": {
+          "type": "number",
+          "description": "Consecutive days test-taking streak"
+        }
+      },
+      "required": ["uid", "lifetimePoints", "totalTestsAttempted"]
+    },
+    "TeacherProfile": {
+      "title": "TeacherProfile",
+      "description": "Educator qualifications and test-authoring credentials",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Educator UID",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Educator name",
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "description": "Verified email address",
+          "maxLength": 256
+        },
+        "qualification": {
+          "type": "string",
+          "description": "Academic credentials and degrees",
+          "maxLength": 250
+        },
+        "specialization": {
+          "type": "string",
+          "description": "Primary subject specialization",
+          "maxLength": 120
+        },
+        "status": {
+          "type": "string",
+          "description": "Verification status by administration",
+          "enum": ["Approved", "Pending", "Suspended"]
+        },
+        "testsCreated": {
+          "type": "number",
+          "description": "Count of tests authored by educator"
+        },
+        "joinedDate": {
+          "type": "string",
+          "description": "Registration date"
+        }
+      },
+      "required": ["id", "name", "email", "status"]
+    },
+    "Test": {
+      "title": "Test",
+      "description": "Competitive examination paper with strict 5-option OMR configuration",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique test identifier",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "description": "Test title",
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed syllabus description",
+          "maxLength": 1000
+        },
+        "category": {
+          "type": "string",
+          "description": "Competitive test category",
+          "enum": [
+            "Daily Test",
+            "Weekly Test",
+            "Mock Test",
+            "PYQ Test",
+            "Chapter Test",
+            "Subject-wise Test"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "description": "Academic syllabus subject",
+          "maxLength": 120
+        },
+        "topic": {
+          "type": "string",
+          "description": "Curriculum topic",
+          "maxLength": 120
+        },
+        "durationMinutes": {
+          "type": "number",
+          "description": "Total examination duration in minutes"
+        },
+        "totalQuestions": {
+          "type": "number",
+          "description": "Number of questions"
+        },
+        "maxMarks": {
+          "type": "number",
+          "description": "Maximum obtainable marks"
+        },
+        "marksPerCorrect": {
+          "type": "number",
+          "description": "Points awarded for each correct answer"
+        },
+        "negativeMarkingEnabled": {
+          "type": "boolean",
+          "description": "Whether negative marking applies to wrong choices"
+        },
+        "negativeMarks": {
+          "type": "number",
+          "description": "Deduction per incorrect choice (Option E exempt)"
+        },
+        "status": {
+          "type": "string",
+          "description": "Lifecycle status",
+          "enum": [
+            "Draft",
+            "Pending Approval",
+            "Approved",
+            "Published",
+            "Scheduled",
+            "Unpublished",
+            "Archived",
+            "Rejected"
+          ]
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Educator or Admin creator UID",
+          "maxLength": 128
+        },
+        "teacherName": {
+          "type": "string",
+          "description": "Author display name",
+          "maxLength": 120
+        },
+        "approvedBy": {
+          "type": "string",
+          "description": "Admin UID who approved publication",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["id", "title", "category", "subject", "durationMinutes", "maxMarks", "status", "createdBy"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "Item bank question with strictly 4 factual options (A–D)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique question identifier",
+          "maxLength": 128
+        },
+        "testId": {
+          "type": "string",
+          "description": "Associated test ID if part of specific test",
+          "maxLength": 128
+        },
+        "statement": {
+          "type": "string",
+          "description": "Question statement in English",
+          "maxLength": 2000
+        },
+        "statementHindi": {
+          "type": "string",
+          "description": "Optional Hindi translation",
+          "maxLength": 2000
+        },
+        "options": {
+          "type": "object",
+          "description": "Four factual options A, B, C, D (Option E is auto-injected at exam runtime)",
+          "properties": {
+            "A": { "type": "string", "maxLength": 500 },
+            "B": { "type": "string", "maxLength": 500 },
+            "C": { "type": "string", "maxLength": 500 },
+            "D": { "type": "string", "maxLength": 500 }
+          },
+          "required": ["A", "B", "C", "D"]
+        },
+        "correctAnswer": {
+          "type": "string",
+          "description": "Factual answer key",
+          "enum": ["A", "B", "C", "D"]
+        },
+        "explanation": {
+          "type": "string",
+          "description": "Detailed explanation and citations",
+          "maxLength": 3000
+        },
+        "subject": {
+          "type": "string",
+          "description": "Academic subject",
+          "maxLength": 120
+        },
+        "topic": {
+          "type": "string",
+          "description": "Specific topic",
+          "maxLength": 120
+        },
+        "difficulty": {
+          "type": "string",
+          "description": "Difficulty benchmark",
+          "enum": ["Easy", "Medium", "Hard"]
+        },
+        "marks": {
+          "type": "number",
+          "description": "Marks awarded for this item"
+        }
+      },
+      "required": ["id", "statement", "options", "correctAnswer", "subject", "marks"]
+    },
+    "TestAttempt": {
+      "title": "TestAttempt",
+      "description": "Candidate official exam submission enforcing One Attempt policy",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Attempt submission ID",
+          "maxLength": 128
+        },
+        "testId": {
+          "type": "string",
+          "description": "Test ID attempted",
+          "maxLength": 128
+        },
+        "testTitle": {
+          "type": "string",
+          "description": "Test name at time of submission",
+          "maxLength": 200
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the test",
+          "maxLength": 80
+        },
+        "subject": {
+          "type": "string",
+          "description": "Test subject",
+          "maxLength": 120
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Candidate UID",
+          "maxLength": 128
+        },
+        "studentName": {
+          "type": "string",
+          "description": "Candidate display name",
+          "maxLength": 120
+        },
+        "answers": {
+          "type": "object",
+          "description": "Map of Question ID to Student Choice (A, B, C, D, or E for unattempted)"
+        },
+        "correctCount": {
+          "type": "number",
+          "description": "Total correct answers"
+        },
+        "wrongCount": {
+          "type": "number",
+          "description": "Total incorrect answers"
+        },
+        "unansweredCount": {
+          "type": "number",
+          "description": "Total unanswered questions including explicit Option E"
+        },
+        "obtainedMarks": {
+          "type": "number",
+          "description": "Net score after negative markings (Option E has 0 penalty)"
+        },
+        "maxMarks": {
+          "type": "number",
+          "description": "Maximum marks possible"
+        },
+        "accuracy": {
+          "type": "number",
+          "description": "Percentage accuracy"
+        },
+        "timeTakenSeconds": {
+          "type": "number",
+          "description": "Elapsed duration in seconds"
+        },
+        "startedAt": {
+          "type": "string",
+          "description": "Start timestamp"
+        },
+        "submittedAt": {
+          "type": "string",
+          "description": "Final submission timestamp"
+        }
+      },
+      "required": ["id", "testId", "studentId", "obtainedMarks", "maxMarks", "submittedAt"]
+    },
+    "Bookmark": {
+      "title": "Bookmark",
+      "description": "Candidate saved questions for revision",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Bookmark ID",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Candidate UID who owns bookmark",
+          "maxLength": 128
+        },
+        "questionId": {
+          "type": "string",
+          "description": "Saved question ID",
+          "maxLength": 128
+        },
+        "savedDate": {
+          "type": "string",
+          "description": "Date saved"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Candidate revision notes",
+          "maxLength": 500
+        }
+      },
+      "required": ["id", "userId", "questionId"]
+    },
+    "NotificationAnnouncement": {
+      "title": "NotificationAnnouncement",
+      "description": "Institutional broadcasts and homepage alert notices",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Announcement ID",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "description": "Notice headline",
+          "maxLength": 200
+        },
+        "message": {
+          "type": "string",
+          "description": "Body content",
+          "maxLength": 1000
+        },
+        "targetAudience": {
+          "type": "string",
+          "description": "Audience filter",
+          "enum": ["All", "Students", "Teachers"]
+        },
+        "type": {
+          "type": "string",
+          "description": "Notice severity",
+          "enum": ["info", "warning", "celebration", "alert"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Broadcast timestamp"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether notice is active"
+        },
+        "bannerDisplay": {
+          "type": "boolean",
+          "description": "Show on homepage ticker"
+        }
+      },
+      "required": ["id", "title", "message", "targetAudience", "isActive"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Academic syllabus subject and topics",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Subject identifier",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Subject name in English",
+          "maxLength": 120
+        },
+        "hindiName": {
+          "type": "string",
+          "description": "Hindi translation",
+          "maxLength": 120
+        },
+        "iconName": {
+          "type": "string",
+          "description": "Lucide icon name",
+          "maxLength": 50
+        },
+        "topics": {
+          "type": "array",
+          "description": "List of sub-topics"
+        }
+      },
+      "required": ["id", "name", "topics"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable administrative action log",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Log ID",
+          "maxLength": 128
+        },
+        "actor": {
+          "type": "string",
+          "description": "Actor alias or name",
+          "maxLength": 120
+        },
+        "actorRole": {
+          "type": "string",
+          "description": "Actor role at time of execution",
+          "enum": ["Admin", "Teacher", "System", "Student"]
+        },
+        "action": {
+          "type": "string",
+          "description": "Operation executed",
+          "maxLength": 200
+        },
+        "target": {
+          "type": "string",
+          "description": "Target entity or resource",
+          "maxLength": 200
+        },
+        "status": {
+          "type": "string",
+          "description": "Operation status",
+          "enum": ["Success", "Warning", "Notice"]
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO timestamp"
+        },
+        "ipAddress": {
+          "type": "string",
+          "description": "Client IP address",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "actor", "action", "target", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile with role assignment"
+    },
+    "/studentProfiles/{studentId}": {
+      "schema": "StudentProfile",
+      "description": "Candidate academic stats, rank, and lifetime points"
+    },
+    "/teacherProfiles/{teacherId}": {
+      "schema": "TeacherProfile",
+      "description": "Educator profile and verification status"
+    },
+    "/tests/{testId}": {
+      "schema": "Test",
+      "description": "Competitive examination tests catalog"
+    },
+    "/questions/{questionId}": {
+      "schema": "Question",
+      "description": "Item bank questions with 4 factual options (A–D)"
+    },
+    "/testAttempts/{attemptId}": {
+      "schema": "TestAttempt",
+      "description": "Candidate test submissions with Option E unattempted auditing"
+    },
+    "/bookmarks/{bookmarkId}": {
+      "schema": "Bookmark",
+      "description": "Candidate bookmarked questions for revision"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "NotificationAnnouncement",
+      "description": "Broadcast announcements and homepage alert notices"
+    },
+    "/subjects/{subjectId}": {
+      "schema": "Subject",
+      "description": "Curriculum subjects and topics hierarchy"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Administrative traceable audit trail"
+    }
+  }
+}

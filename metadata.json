@@ -1,0 +1,7 @@
+{
+  "name": "Sanskar-X-NarutoQuiz | Premium MCQ Examination Platform",
+  "description": "Prepare Smarter, Perform Better. High-stakes MCQ examination platform for competitive tests with Daily, Weekly, Mock and PYQ assessments, 5-option OMR engine, and teacher/admin moderation.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
