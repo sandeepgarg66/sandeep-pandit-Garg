@@ -10,15 +10,15 @@ export const TestInstructions: React.FC = () => {
   const test = activeExam.test;
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6">
-      <div className="glass-panel p-6 sm:p-10 rounded-3xl border border-white/10 space-y-8 shadow-2xl">
+    <div className="w-full max-w-4xl mx-auto py-6 sm:py-8 px-3 sm:px-6 overflow-x-hidden">
+      <div className="glass-panel p-4 sm:p-10 rounded-2xl sm:rounded-3xl border border-white/10 space-y-6 sm:space-y-8 shadow-2xl">
         {/* Header Ribbon */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-6">
-          <div className="space-y-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#FF8C32] bg-[#FF8C32]/10 px-2.5 py-0.5 rounded">
+        <div className="flex items-start sm:items-center justify-between border-b border-white/10 pb-5 gap-3">
+          <div className="space-y-1 min-w-0">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#FF8C32] bg-[#FF8C32]/10 px-2 sm:px-2.5 py-0.5 rounded">
               Official Examination Briefing
             </span>
-            <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-white">
+            <h2 className="font-heading text-xl sm:text-3xl font-extrabold text-white truncate">
               {test.title}
             </h2>
             <p className="text-xs text-slate-400">
@@ -28,7 +28,7 @@ export const TestInstructions: React.FC = () => {
 
           <button
             onClick={cancelExam}
-            className="p-2 text-slate-400 hover:text-white rounded-lg transition"
+            className="p-2 text-slate-400 hover:text-white rounded-lg transition shrink-0"
             title="Cancel & Go Back"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -118,10 +118,10 @@ export const TestInstructions: React.FC = () => {
             </span>
           </label>
 
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
             <button
               onClick={cancelExam}
-              className="px-5 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 text-slate-300 font-semibold text-xs transition cursor-pointer"
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 text-slate-300 font-semibold text-xs transition cursor-pointer text-center"
             >
               Cancel & Return
             </button>
@@ -129,7 +129,7 @@ export const TestInstructions: React.FC = () => {
             <button
               onClick={beginExamination}
               disabled={!agreed}
-              className="px-8 py-3 rounded-xl bg-gradient-to-r from-[#EA580C] to-[#FF8C32] hover:from-[#FF8C32] hover:to-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-orange-500/20 transition flex items-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-[#EA580C] to-[#FF8C32] hover:from-[#FF8C32] hover:to-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-orange-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
             >
               <Play className="w-4 h-4 fill-slate-950" />
               <span>Start Examination</span>

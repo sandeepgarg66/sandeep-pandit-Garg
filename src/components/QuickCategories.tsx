@@ -71,7 +71,7 @@ export const QuickCategories: React.FC = () => {
   };
 
   return (
-    <section className="py-14 bg-[#0B0F19]">
+    <section className="w-full max-w-full overflow-hidden py-10 sm:py-14 bg-[#0B0F19]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
           <div>

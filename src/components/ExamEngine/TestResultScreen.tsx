@@ -26,15 +26,15 @@ export const TestResultScreen: React.FC = () => {
   const durationSec = result.timeTakenSeconds % 60;
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 space-y-8">
+    <div className="w-full max-w-4xl mx-auto py-6 sm:py-8 px-3 sm:px-6 space-y-6 sm:space-y-8 overflow-x-hidden">
       {/* Top Victory / Score Summary Card */}
-      <div className="glass-panel p-6 sm:p-10 rounded-3xl border border-white/10 relative overflow-hidden shadow-2xl space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-6 border-b border-white/10 pb-6">
-          <div className="space-y-1">
-            <span className="text-xs uppercase font-bold tracking-widest text-[#FF8C32] bg-[#FF8C32]/10 px-3 py-1 rounded-full border border-[#FF8C32]/20">
+      <div className="glass-panel p-4 sm:p-10 rounded-2xl sm:rounded-3xl border border-white/10 relative overflow-hidden shadow-2xl space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
+          <div className="space-y-1 min-w-0">
+            <span className="text-[10px] sm:text-xs uppercase font-bold tracking-widest text-[#FF8C32] bg-[#FF8C32]/10 px-2.5 sm:px-3 py-1 rounded-full border border-[#FF8C32]/20">
               Official Assessment Result
             </span>
-            <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-white mt-2">
+            <h2 className="font-heading text-xl sm:text-3xl font-extrabold text-white mt-2 truncate">
               {result.testTitle}
             </h2>
             <p className="text-xs text-slate-400">
@@ -43,18 +43,18 @@ export const TestResultScreen: React.FC = () => {
           </div>
 
           {/* Obtained Marks Circular Badge */}
-          <div className="w-28 h-28 rounded-full border-4 border-[#FF8C32] bg-slate-900/90 flex flex-col items-center justify-center text-center p-2 shadow-inner shadow-orange-500/20 shrink-0">
-            <span className="font-mono text-3xl font-extrabold text-[#FF8C32]">
+          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-[#FF8C32] bg-slate-900/90 flex flex-col items-center justify-center text-center p-2 shadow-inner shadow-orange-500/20 shrink-0 self-center sm:self-auto">
+            <span className="font-mono text-2xl sm:text-3xl font-extrabold text-[#FF8C32]">
               {result.obtainedMarks}
             </span>
-            <span className="text-[10px] text-slate-400 uppercase font-semibold">
+            <span className="text-[9px] sm:text-[10px] text-slate-400 uppercase font-semibold">
               out of {result.maxMarks}
             </span>
           </div>
         </div>
 
         {/* 4 Score Breakdown Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 text-center">
           <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-1">
             <CheckCircle2 className="w-5 h-5 text-emerald-400 mx-auto" />
             <span className="text-[10px] text-slate-400 uppercase font-semibold block">Correct</span>
@@ -87,22 +87,22 @@ export const TestResultScreen: React.FC = () => {
         </div>
 
         {/* Action Controls */}
-        <div className="pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+        <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <button
             onClick={() => setShowFullReview(!showFullReview)}
-            className="px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition flex items-center gap-2 cursor-pointer"
+            className="w-full sm:w-auto px-5 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
           >
             <Eye className="w-4 h-4 text-[#FF8C32]" />
             <span>{showFullReview ? 'Hide Detailed Review' : 'Review Questions & Explanations'}</span>
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             <button
               onClick={() => {
                 cancelExam();
                 setActiveSection('student-leaderboard');
               }}
-              className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition flex items-center gap-1.5 cursor-pointer"
+              className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Trophy className="w-4 h-4 text-[#FF8C32]" />
               <span>Leaderboard</span>
@@ -113,7 +113,7 @@ export const TestResultScreen: React.FC = () => {
                 cancelExam();
                 setActiveSection('student-dashboard');
               }}
-              className="px-6 py-3 rounded-xl bg-[#FF8C32] hover:bg-orange-400 text-slate-950 font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
+              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#FF8C32] hover:bg-orange-400 text-slate-950 font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Home className="w-4 h-4 fill-slate-950" />
               <span>Return to Dashboard</span>

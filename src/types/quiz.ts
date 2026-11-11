@@ -18,6 +18,20 @@ export type TestStatus =
 
 export type UserRole = 'student' | 'teacher' | 'admin';
 
+export interface UserAccount {
+  uid: string;
+  id?: string;
+  name: string;
+  displayName?: string;
+  email: string;
+  photoURL?: string;
+  role: UserRole;
+  accountStatus: 'Active' | 'Suspended';
+  teacherApprovalStatus: 'None' | 'Pending' | 'Approved' | 'Rejected' | 'Suspended';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type QuestionOptionKey = 'A' | 'B' | 'C' | 'D';
 export type StudentResponseKey = 'A' | 'B' | 'C' | 'D' | 'E'; // E = Unattempted / No Response
 

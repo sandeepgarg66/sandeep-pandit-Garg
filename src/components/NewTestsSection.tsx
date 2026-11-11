@@ -86,8 +86,8 @@ export const NewTestsSection: React.FC<NewTestsSectionProps> = ({ limit, showFil
   const displayTests = filteredTests.slice(startIndex, startIndex + itemsPerPage);
 
   return (
-    <section className="py-14 bg-[#111827]/40 border-t border-white/5">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+    <section className="py-10 sm:py-14 bg-[#111827]/40 border-t border-white/5 w-full max-w-full overflow-hidden">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 space-y-6 sm:space-y-8 w-full">
         {/* Section Heading & Action Header */}
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -95,7 +95,7 @@ export const NewTestsSection: React.FC<NewTestsSectionProps> = ({ limit, showFil
               <Sparkles className="w-3.5 h-3.5 text-[#FF8C32]" />
               <span>Live Examination Portal</span>
             </div>
-            <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-white">
+            <h2 className="font-heading text-xl sm:text-3xl font-extrabold text-white">
               Available & Published Assessments
             </h2>
             <p className="text-xs text-slate-400 mt-1">
@@ -106,7 +106,7 @@ export const NewTestsSection: React.FC<NewTestsSectionProps> = ({ limit, showFil
           {limit && (
             <button
               onClick={() => setActiveSection('student-new-tests')}
-              className="px-4 py-2 rounded-xl text-xs font-semibold glass-card text-slate-300 hover:text-white transition flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 sm:px-4 py-2 rounded-xl text-xs font-semibold glass-card text-slate-300 hover:text-white transition flex items-center gap-1.5 cursor-pointer shrink-0"
             >
               <span>Explore All Assessments ({tests.length})</span>
               <ArrowRight className="w-3.5 h-3.5 text-[#FF8C32]" />
@@ -116,10 +116,10 @@ export const NewTestsSection: React.FC<NewTestsSectionProps> = ({ limit, showFil
 
         {/* Search & Multi-Filter Controls */}
         {showFilters && (
-          <div className="glass-panel p-5 rounded-2xl border border-white/10 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+          <div className="glass-panel p-4 sm:p-5 rounded-2xl border border-white/10 space-y-4 w-full">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 w-full">
               {/* Search Bar */}
-              <div className="md:col-span-5 relative">
+              <div className="md:col-span-5 relative w-full">
                 <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
@@ -134,7 +134,7 @@ export const NewTestsSection: React.FC<NewTestsSectionProps> = ({ limit, showFil
               </div>
 
               {/* Subject Selector */}
-              <div className="md:col-span-4">
+              <div className="md:col-span-4 w-full">
                 <select
                   value={selectedSubject}
                   onChange={(e) => {
@@ -155,7 +155,7 @@ export const NewTestsSection: React.FC<NewTestsSectionProps> = ({ limit, showFil
               </div>
 
               {/* Availability Filter */}
-              <div className="md:col-span-3 flex bg-slate-900 p-1 rounded-xl border border-white/10 text-xs">
+              <div className="md:col-span-3 flex bg-slate-900 p-1 rounded-xl border border-white/10 text-xs w-full">
                 {(['All', 'Available', 'Attempted'] as const).map((mode) => (
                   <button
                     key={mode}
@@ -176,7 +176,7 @@ export const NewTestsSection: React.FC<NewTestsSectionProps> = ({ limit, showFil
             </div>
 
             {/* Test Category Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none pt-1 border-t border-white/5">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none pt-1 border-t border-white/5 w-full max-w-full">
               <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider shrink-0 mr-1">
                 Category:
               </span>
@@ -187,7 +187,7 @@ export const NewTestsSection: React.FC<NewTestsSectionProps> = ({ limit, showFil
                     setSelectedCategory(cat);
                     setCurrentPage(1);
                   }}
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer shrink-0 ${
                     selectedCategory === cat
                       ? 'bg-[#FF8C32] text-slate-950 font-bold shadow-md'
                       : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
@@ -200,37 +200,15 @@ export const NewTestsSection: React.FC<NewTestsSectionProps> = ({ limit, showFil
           </div>
         )}
 
-        {/* Empty State */}
-        {displayTests.length === 0 && (
-          <div className="glass-panel p-12 text-center rounded-3xl border border-white/10 space-y-3">
-            <BookOpen className="w-10 h-10 text-slate-500 mx-auto" />
-            <h3 className="font-heading font-bold text-base text-white">No Matching Assessments Found</h3>
-            <p className="text-xs text-slate-400 max-w-md mx-auto">
-              No examination matches your current search or filter criteria. Try resetting the filters or searching for different topics.
-            </p>
-            <button
-              onClick={() => {
-                setSearchKeyword('');
-                setSelectedCategory('All');
-                setSelectedSubject('All');
-                setAvailabilityFilter('All');
-              }}
-              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-bold transition cursor-pointer"
-            >
-              Reset All Filters
-            </button>
-          </div>
-        )}
-
         {/* Tests Cards Grid or Clean Empty State */}
         {displayTests.length === 0 ? (
-          <div className="glass-card p-12 sm:p-16 rounded-3xl border border-white/10 text-center max-w-lg mx-auto space-y-4 my-4">
-            <div className="w-16 h-16 rounded-2xl bg-[#FF8C32]/10 border border-[#FF8C32]/20 text-[#FF8C32] flex items-center justify-center mx-auto shadow-inner">
-              <BookOpen className="w-8 h-8 opacity-80" />
+          <div className="glass-panel p-8 sm:p-12 text-center rounded-3xl border border-white/10 space-y-4 max-w-xl mx-auto w-full my-4">
+            <div className="w-14 h-14 rounded-2xl bg-[#FF8C32]/10 border border-[#FF8C32]/20 text-[#FF8C32] flex items-center justify-center mx-auto shadow-inner">
+              <BookOpen className="w-7 h-7 opacity-80" />
             </div>
             <div className="space-y-1.5">
-              <h3 className="font-heading font-bold text-lg text-white">
-                No tests are currently available.
+              <h3 className="font-heading font-bold text-base sm:text-lg text-white">
+                No matching assessments found
               </h3>
               <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
                 {searchKeyword || selectedCategory !== 'All' || selectedSubject !== 'All' || availabilityFilter !== 'All'
@@ -238,9 +216,22 @@ export const NewTestsSection: React.FC<NewTestsSectionProps> = ({ limit, showFil
                   : 'Official examinations and practice tests will be published here once authoring educators and administrators publish new assessments.'}
               </p>
             </div>
+            {(searchKeyword || selectedCategory !== 'All' || selectedSubject !== 'All' || availabilityFilter !== 'All') && (
+              <button
+                onClick={() => {
+                  setSearchKeyword('');
+                  setSelectedCategory('All');
+                  setSelectedSubject('All');
+                  setAvailabilityFilter('All');
+                }}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-bold transition cursor-pointer"
+              >
+                Reset All Filters
+              </button>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 w-full">
             {displayTests.map((test) => {
               const attempted = hasAttempted(test.id);
               const pastAttempt = getAttemptForTest(test.id);
@@ -335,13 +326,13 @@ export const NewTestsSection: React.FC<NewTestsSectionProps> = ({ limit, showFil
                 </div>
 
                 {/* Footer Action Card Area */}
-                <div className="pt-4 mt-4 border-t border-white/10 flex items-center justify-between">
-                  <div className="text-[11px] text-slate-400">
-                    Faculty: <span className="text-slate-300 font-semibold">{test.teacherName || test.createdBy}</span>
+                <div className="pt-4 mt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-2.5">
+                  <div className="text-[11px] text-slate-400 min-w-0">
+                    Faculty: <span className="text-slate-300 font-semibold truncate">{test.teacherName || test.createdBy}</span>
                   </div>
 
                   {attempted ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       <div className="text-right">
                         <span className="text-[10px] text-slate-400 block">Your Score</span>
                         <span className="text-xs font-mono font-bold text-emerald-400">
@@ -360,7 +351,7 @@ export const NewTestsSection: React.FC<NewTestsSectionProps> = ({ limit, showFil
                   ) : (
                     <button
                       onClick={() => startTestInstructions(test)}
-                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#EA580C] to-[#FF8C32] hover:from-[#FF8C32] hover:to-amber-400 text-slate-950 font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#EA580C] to-[#FF8C32] hover:from-[#FF8C32] hover:to-amber-400 text-slate-950 font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer w-full sm:w-auto"
                     >
                       <Play className="w-3.5 h-3.5 fill-slate-950" />
                       <span>Start Test</span>

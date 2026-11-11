@@ -12,7 +12,7 @@ import {
 import { useQuiz } from '../../context/QuizContext';
 
 export const AdminSettingsView: React.FC = () => {
-  const { platformSettings, updatePlatformSettings, firebaseUser } = useQuiz();
+  const { platformSettings, updatePlatformSettings, firebaseUser, allUsers, promoteUserToAdmin, revokeAdminRole } = useQuiz();
 
   const [oneAttempt, setOneAttempt] = useState(platformSettings.enforceOneAttempt);
   const [optionE, setOptionE] = useState(platformSettings.enforceOptionE);
@@ -20,6 +20,9 @@ export const AdminSettingsView: React.FC = () => {
   const [penaltyRatio, setPenaltyRatio] = useState(platformSettings.defaultNegativeMarkPenalty);
   const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState(60);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [adminActionNotice, setAdminActionNotice] = useState<string | null>(null);
+
+  const isPlatformOwner = firebaseUser?.email === 'sandeepgarg6375494692@gmail.com';
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +36,27 @@ export const AdminSettingsView: React.FC = () => {
     setTimeout(() => setSavedSuccess(false), 3000);
   };
 
+  const handlePromote = async (uid: string) => {
+    try {
+      await promoteUserToAdmin(uid);
+      setAdminActionNotice(`Promoted user ${uid} to Administrator.`);
+      setTimeout(() => setAdminActionNotice(null), 3000);
+    } catch (err: any) {
+      alert(err.message || 'Failed to promote user.');
+    }
+  };
+
+  const handleRevoke = async (uid: string) => {
+    if (!confirm('Are you sure you want to revoke Administrator privileges from this user?')) return;
+    try {
+      await revokeAdminRole(uid, 'student');
+      setAdminActionNotice(`Revoked Admin privileges for user ${uid}.`);
+      setTimeout(() => setAdminActionNotice(null), 3000);
+    } catch (err: any) {
+      alert(err.message || 'Failed to revoke role.');
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
@@ -44,6 +68,102 @@ export const AdminSettingsView: React.FC = () => {
           Configure institutional assessment invariants, OMR standards, and session authentication limits.
         </p>
       </div>
+
+      {/* Owner-Only Administrator Management Section (Part 6) */}
+      {isPlatformOwner && (
+        <div className="glass-panel p-6 rounded-3xl border border-[#FF8C32]/40 bg-[#FF8C32]/5 space-y-4">
+          <div className="flex items-center justify-between border-b border-white/10 pb-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-[#FF8C32]" />
+              <div>
+                <h3 className="font-heading font-bold text-base text-white">
+                  Owner-Only Administrator Management
+                </h3>
+                <span className="text-[10px] text-amber-300 font-mono">
+                  Restricted to Platform Owner: sandeepgarg6375494692@gmail.com
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-slate-300 leading-relaxed">
+            As the sole platform owner, you have exclusive authority to assign or revoke Administrator permissions. Regular registrations can never sign up as Admin.
+          </p>
+
+          {adminActionNotice && (
+            <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold">
+              {adminActionNotice}
+            </div>
+          )}
+
+          <div className="overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-900/90 text-slate-400 text-[10px] uppercase tracking-wider border-b border-white/10">
+                <tr>
+                  <th className="px-4 py-3">User</th>
+                  <th className="px-4 py-3">Email</th>
+                  <th className="px-4 py-3 text-center">Current Role</th>
+                  <th className="px-4 py-3 text-right">Owner Authority Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 font-medium">
+                {allUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+                      No registered user accounts found in database.
+                    </td>
+                  </tr>
+                ) : (
+                  allUsers.map((u) => {
+                    const isOwnerSelf = u.email === 'sandeepgarg6375494692@gmail.com';
+                    return (
+                      <tr key={u.uid} className="hover:bg-white/5 transition">
+                        <td className="px-4 py-3 font-bold text-white">
+                          {u.displayName || u.name || 'Candidate'}
+                          {isOwnerSelf && <span className="ml-1 text-[10px] text-[#FF8C32] font-normal">(You - Root Owner)</span>}
+                        </td>
+                        <td className="px-4 py-3 text-slate-400 font-mono text-[11px]">
+                          {u.email}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            u.role === 'admin'
+                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                              : u.role === 'teacher'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          }`}>
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {isOwnerSelf ? (
+                            <span className="text-[10px] text-slate-500">Permanent Root Owner</span>
+                          ) : u.role === 'admin' ? (
+                            <button
+                              onClick={() => handleRevoke(u.uid)}
+                              className="px-3 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-500/30 text-rose-300 text-[10px] font-bold transition cursor-pointer"
+                            >
+                              Revoke Admin
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handlePromote(u.uid)}
+                              className="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-bold transition cursor-pointer"
+                            >
+                              Promote to Admin
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSave} className="space-y-6 text-xs">
         {/* Core Exam Rules */}

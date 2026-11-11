@@ -19,7 +19,7 @@ import { Test, Question, TestCategory, QuestionOptionKey } from '../../types/qui
 import { AIBulkQuestionManager } from './AIBulkQuestionManager';
 
 export const TeacherDashboard: React.FC = () => {
-  const { tests, createTest, questions, addQuestion, setActiveSection, firebaseUser } = useQuiz();
+  const { tests, createTest, deleteTest, questions, addQuestion, setActiveSection, firebaseUser } = useQuiz();
   const [activeTab, setActiveTab] = useState<'tests' | 'create-test' | 'question-bank' | 'ai-bulk-import'>('tests');
 
   // Test creation form state
@@ -92,82 +92,91 @@ export const TeacherDashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto py-8 px-4 sm:px-6">
+    <div className="w-full max-w-6xl mx-auto py-6 sm:py-8 px-3 sm:px-6 space-y-6 sm:space-y-8 overflow-x-hidden">
       {/* Teacher Profile Header */}
-      <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-white/10 flex flex-wrap items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#EA580C] to-[#FF8C32] p-0.5 shadow-lg">
-            <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center text-2xl font-bold text-[#FF8C32]">
+      <div className="glass-panel p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 w-full">
+        <div className="flex items-center gap-3.5 sm:gap-4 min-w-0 w-full md:w-auto">
+          <div className="w-13 h-13 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-[#EA580C] to-[#FF8C32] p-0.5 shadow-lg shrink-0">
+            <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center text-xl sm:text-2xl font-bold text-[#FF8C32]">
               {(firebaseUser?.displayName ? firebaseUser.displayName.charAt(0).toUpperCase() : '忍')}
             </div>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs uppercase font-bold text-[#FF8C32] bg-[#FF8C32]/10 px-2.5 py-0.5 rounded">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] sm:text-xs uppercase font-bold text-[#FF8C32] bg-[#FF8C32]/10 px-2 py-0.5 rounded">
                 Verified Educator
               </span>
-              <span className="text-xs text-slate-400 font-mono">Academic Faculty</span>
+              <span className="text-[10px] sm:text-xs text-slate-400 font-mono">Academic Faculty</span>
             </div>
-            <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-white mt-1">
+            <h2 className="font-heading text-lg sm:text-2xl lg:text-3xl font-extrabold text-white mt-1 truncate">
               {firebaseUser?.displayName || 'Faculty Educator'}
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-[11px] sm:text-xs text-slate-400 truncate">
               {firebaseUser?.email || 'Department of Competitive Examination & Shastra Pedagogy'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
+          {/* Part 4: Teacher Can Use Student Panel */}
+          <button
+            onClick={() => setActiveSection('student-dashboard')}
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-xs shadow transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[40px]"
+            title="Practice MCQs, attempt exams, track rank using your faculty account"
+          >
+            <BookOpen className="w-4 h-4 text-[#FF8C32] shrink-0" />
+            <span>Open Student Panel</span>
+          </button>
           <button
             onClick={() => setActiveTab('ai-bulk-import')}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-[#FF8C32] hover:opacity-95 text-white font-bold text-xs shadow transition flex items-center gap-1.5 cursor-pointer"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-[#FF8C32] hover:opacity-95 text-white font-bold text-xs shadow transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[40px]"
           >
-            <Sparkles className="w-4 h-4" />
+            <Sparkles className="w-4 h-4 shrink-0" />
             <span>AI Question Generator</span>
           </button>
           <button
             onClick={() => setActiveTab('create-test')}
-            className="px-4 py-2.5 rounded-xl bg-[#FF8C32] hover:bg-orange-400 text-slate-950 font-bold text-xs shadow transition flex items-center gap-1.5 cursor-pointer"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#FF8C32] hover:bg-orange-400 text-slate-950 font-bold text-xs shadow transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[40px]"
           >
-            <PlusCircle className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4 shrink-0" />
             <span>Create New Test</span>
           </button>
         </div>
       </div>
 
       {/* 4 Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="glass-card p-5 rounded-2xl border border-white/5 space-y-1">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 w-full">
+        <div className="glass-card p-4 sm:p-5 rounded-2xl border border-white/5 space-y-1">
           <span className="text-[11px] text-slate-400 uppercase font-semibold">Total Tests</span>
-          <div className="text-3xl font-extrabold font-mono text-white">{tests.length}</div>
+          <div className="text-2xl sm:text-3xl font-extrabold font-mono text-white">{tests.length}</div>
           <span className="text-[10px] text-slate-400">Under administration</span>
         </div>
 
-        <div className="glass-card p-5 rounded-2xl border border-white/5 space-y-1">
+        <div className="glass-card p-4 sm:p-5 rounded-2xl border border-white/5 space-y-1">
           <span className="text-[11px] text-slate-400 uppercase font-semibold">Published</span>
-          <div className="text-3xl font-extrabold font-mono text-emerald-400">
+          <div className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-400">
             {tests.filter(t => t.status === 'Published').length}
           </div>
           <span className="text-[10px] text-emerald-400 font-medium">Live for students</span>
         </div>
 
-        <div className="glass-card p-5 rounded-2xl border border-white/5 space-y-1">
+        <div className="glass-card p-4 sm:p-5 rounded-2xl border border-white/5 space-y-1">
           <span className="text-[11px] text-slate-400 uppercase font-semibold">Pending Approval</span>
-          <div className="text-3xl font-extrabold font-mono text-amber-400">
+          <div className="text-2xl sm:text-3xl font-extrabold font-mono text-amber-400">
             {tests.filter(t => t.status === 'Pending Approval').length}
           </div>
           <span className="text-[10px] text-amber-300">Under Admin review</span>
         </div>
 
-        <div className="glass-card p-5 rounded-2xl border border-white/5 space-y-1">
+        <div className="glass-card p-4 sm:p-5 rounded-2xl border border-white/5 space-y-1">
           <span className="text-[11px] text-slate-400 uppercase font-semibold">Questions Bank</span>
-          <div className="text-3xl font-extrabold font-mono text-[#FF8C32]">{questions.length}</div>
+          <div className="text-2xl sm:text-3xl font-extrabold font-mono text-[#FF8C32]">{questions.length}</div>
           <span className="text-[10px] text-slate-400">Verified MCQ items</span>
         </div>
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-white/10 gap-2 text-xs font-semibold overflow-x-auto scrollbar-none">
+      <div className="w-full max-w-full overflow-x-auto pb-1 scrollbar-none flex border-b border-white/10 gap-2 text-xs font-semibold">
         <button
           onClick={() => setActiveTab('tests')}
           className={`px-4 py-2.5 border-b-2 whitespace-nowrap transition cursor-pointer ${
@@ -231,38 +240,68 @@ export const TeacherDashboard: React.FC = () => {
                       </td>
                     </tr>
                   ) : (
-                    tests.map((t) => (
-                      <tr key={t.id} className="hover:bg-white/5 transition">
-                        <td className="px-5 py-3.5 font-bold text-white">
-                          {t.title}
-                        </td>
-                        <td className="px-5 py-3.5 text-[#FF8C32]">
-                          {t.category}
-                        </td>
-                        <td className="px-5 py-3.5 text-slate-400">
-                          {t.subject}
-                        </td>
-                        <td className="px-5 py-3.5 text-center font-mono">
-                          {t.questions.length} Qs ({t.maxMarks} Marks)
-                        </td>
-                        <td className="px-5 py-3.5 text-center">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            t.status === 'Published'
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                              : t.status === 'Pending Approval'
-                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                              : 'bg-slate-800 text-slate-300 border border-white/10'
-                          }`}>
-                            {t.status}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3.5 text-right">
-                          <span className="text-[11px] text-slate-400">
-                            {t.status === 'Published' ? 'Approved by Admin' : 'Submitted for review'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+                    tests.map((t) => {
+                      const isOwner = t.createdBy === firebaseUser?.uid;
+                      const canDelete = isOwner && t.status !== 'Published';
+                      return (
+                        <tr key={t.id} className="hover:bg-white/5 transition">
+                          <td className="px-5 py-3.5 font-bold text-white">
+                            <div>{t.title}</div>
+                            {isOwner ? (
+                              <span className="text-[10px] text-emerald-400 font-normal">Author: You (Your Test)</span>
+                            ) : (
+                              <span className="text-[10px] text-slate-500 font-normal">Author: {t.teacherName || 'Faculty'} (Protected)</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3.5 text-[#FF8C32]">
+                            {t.category}
+                          </td>
+                          <td className="px-5 py-3.5 text-slate-400">
+                            {t.subject}
+                          </td>
+                          <td className="px-5 py-3.5 text-center font-mono">
+                            {t.questions.length} Qs ({t.maxMarks} Marks)
+                          </td>
+                          <td className="px-5 py-3.5 text-center">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              t.status === 'Published'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : t.status === 'Pending Approval'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                : 'bg-slate-800 text-slate-300 border border-white/10'
+                            }`}>
+                              {t.status}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5 text-right space-x-2">
+                            {isOwner ? (
+                              <>
+                                <span className="text-[11px] text-slate-400">
+                                  {t.status === 'Published' ? 'Approved by Admin' : 'Submitted for review'}
+                                </span>
+                                {canDelete && (
+                                  <button
+                                    onClick={() => {
+                                      if (confirm(`Are you sure you want to delete "${t.title}"?`)) {
+                                        deleteTest(t.id);
+                                      }
+                                    }}
+                                    className="p-1 rounded text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition cursor-pointer"
+                                    title="Delete Draft Test"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 inline" />
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-[11px] text-slate-500 italic">
+                                Read Only (Another Faculty)
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

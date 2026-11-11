@@ -27,6 +27,7 @@ import { TeacherDashboard } from './components/TeacherPanel/TeacherDashboard';
 import { AdminDashboard } from './components/AdminPanel/AdminDashboard';
 import { AuthModal } from './components/Auth/AuthModal';
 import { TeacherPendingScreen } from './components/Auth/TeacherPendingScreen';
+import { RoleSelectionModal } from './components/Auth/RoleSelectionModal';
 
 function MainAppContent() {
   const { activeSection, activeExam, isAuthModalOpen, closeAuthModal, authModalMode } = useQuiz();
@@ -138,6 +139,7 @@ export function App() {
     <QuizProvider>
       <MainAppContent />
       <SearchModal />
+      <RoleSelectionModal />
     </QuizProvider>
   );
 }

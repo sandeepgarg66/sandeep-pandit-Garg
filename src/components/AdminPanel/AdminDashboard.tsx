@@ -34,7 +34,7 @@ export const AdminDashboard: React.FC = () => {
   const pendingApprovalsCount = tests.filter(t => t.status === 'Pending Approval').length;
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] bg-[#0B0F19]">
+    <div className="w-full max-w-full overflow-x-hidden flex min-h-[calc(100vh-4rem)] bg-[#0B0F19]">
       {/* 15-Section Responsive Sidebar */}
       <AdminSidebar
         activeTab={activeTab}
@@ -44,7 +44,7 @@ export const AdminDashboard: React.FC = () => {
       />
 
       {/* Main Admin Content Area */}
-      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6 max-w-7xl mx-auto">
+      <main className="flex-1 w-full max-w-7xl mx-auto min-w-0 overflow-y-auto px-3 sm:px-8 py-6 space-y-6">
         {/* Mobile Sidebar Trigger & Admin Top Bar */}
         <div className="flex items-center justify-between lg:hidden pb-4 border-b border-white/10">
           <button

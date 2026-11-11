@@ -36,6 +36,10 @@ service cloud.firestore {
       );
     }
 
+    function isOwnerEmail() {
+      return isSignedIn() && request.auth.token.email == "sandeepgarg6375494692@gmail.com";
+    }
+
     function isTeacher() {
       return isSignedIn() && (
         isAdmin() ||
@@ -46,10 +50,8 @@ service cloud.firestore {
 
     // Entity validation helpers
     function isValidUser(data) {
-      return data.keys().hasAll(['id', 'email', 'displayName', 'role']) &&
-             data.id is string && data.id.size() <= 128 &&
+      return (data.keys().hasAll(['id', 'email', 'role']) || data.keys().hasAll(['uid', 'email', 'role'])) &&
              data.email is string && data.email.size() <= 256 &&
-             data.displayName is string && data.displayName.size() <= 120 &&
              (data.role == 'student' || data.role == 'teacher' || data.role == 'admin');
     }
 
@@ -128,16 +130,15 @@ service cloud.firestore {
              data.target is string && data.target.size() <= 200;
     }
 
-    // 1. Users Collection (PII isolation)
+    // 1. Users Collection (PII isolation & Owner-Only Admin Control)
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming()) &&
-                   (incoming().role != 'admin' || request.auth.token.email == "sandeepgarg6375494692@gmail.com");
+                   (incoming().role != 'admin' || isOwnerEmail());
       allow update: if isValidId(userId) && (isOwner(userId) || isAdmin()) && isValidUser(incoming()) &&
-                   incoming().id == existing().id &&
-                   (incoming().role == existing().role || isAdmin());
-      allow delete: if isValidId(userId) && isAdmin();
+                   (incoming().role == existing().role || isOwnerEmail());
+      allow delete: if isValidId(userId) && isOwnerEmail();
     }
 
     // 2. Student Profiles
@@ -161,13 +162,26 @@ service cloud.firestore {
       allow delete: if isValidId(teacherId) && isAdmin();
     }
 
-    // 4. Tests Collection
+    // 4. Tests Collection (Strict Teacher Ownership & Review Lifecycle)
     match /tests/{testId} {
       allow get: if existing().status == 'Published' || isTeacher() || isAdmin();
       allow list: if resource.data.status == 'Published' || isTeacher() || isAdmin();
-      allow create: if isValidId(testId) && (isTeacher() || isAdmin()) && isValidTest(incoming());
-      allow update: if isValidId(testId) && (isAdmin() || (isTeacher() && existing().createdBy == request.auth.uid)) && isValidTest(incoming());
-      allow delete: if isValidId(testId) && isAdmin();
+      allow create: if isValidId(testId) && (isTeacher() || isAdmin()) && isValidTest(incoming()) &&
+                   (isAdmin() || (incoming().createdBy == request.auth.uid && (incoming().status == 'Pending Approval' || incoming().status == 'Draft')));
+      allow update: if isValidId(testId) && isValidTest(incoming()) && (
+        isAdmin() ||
+        (isTeacher() &&
+         existing().createdBy == request.auth.uid &&
+         incoming().createdBy == existing().createdBy &&
+         (incoming().status == 'Draft' || incoming().status == 'Pending Approval')
+        )
+      );
+      allow delete: if isValidId(testId) && (
+        isAdmin() ||
+        (isTeacher() &&
+         existing().createdBy == request.auth.uid &&
+         existing().status != 'Published')
+      );
     }
 
     // 5. Questions Collection

@@ -13,7 +13,8 @@ import {
   NotificationAnnouncement,
   PYQSet,
   PlatformSettings,
-  SubjectItem
+  SubjectItem,
+  UserAccount
 } from '../types/quiz';
 import {
   MOCK_TESTS,
@@ -39,7 +40,7 @@ import {
   logOutUser
 } from '../lib/firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import {
   initializeExamSession,
   persistExamSession,
@@ -58,7 +59,8 @@ import {
   fetchRealNotifications,
   fetchRealAuditLogs,
   fetchRealBookmarks,
-  computeRealLeaderboards
+  computeRealLeaderboards,
+  fetchRealUsers
 } from '../lib/productionDataService';
 
 export interface AdminStudentItem {
@@ -145,13 +147,17 @@ interface QuizContextType {
   unpublishTest: (testId: string) => void;
   scheduleTest: (testId: string, startDate: string, endDate: string) => void;
   archiveTest: (testId: string) => void;
-  deleteTest: (testId: string) => void;
+  updateTest: (testId: string, updatedData: Partial<Test>) => Promise<void>;
+  deleteTest: (testId: string) => Promise<void>;
 
   // Admin Specific Controls
+  allUsers: UserAccount[];
   updateStudentStatus: (studentId: string, status: 'Active' | 'Suspended') => void;
   approveTeacher: (teacherId: string) => void;
   rejectTeacher: (teacherId: string) => void;
   suspendTeacher: (teacherId: string) => void;
+  promoteUserToAdmin: (targetUid: string) => Promise<void>;
+  revokeAdminRole: (targetUid: string, fallbackRole?: 'student' | 'teacher') => Promise<void>;
   addNotification: (notif: Omit<NotificationAnnouncement, 'id' | 'createdAt'>) => void;
   toggleNotificationStatus: (id: string) => void;
   deleteNotification: (id: string) => void;
@@ -170,6 +176,9 @@ interface QuizContextType {
   authModalMode: 'login' | 'register';
   openAuthModal: (mode: 'login' | 'register') => void;
   closeAuthModal: () => void;
+  isRoleSelectionModalOpen: boolean;
+  setIsRoleSelectionModalOpen: (open: boolean) => void;
+  assignRoleToCurrentUser: (role: 'student' | 'teacher', details?: { qualification?: string; specialization?: string }) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -212,8 +221,10 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [teacherStatus, setTeacherStatus] = useState<'Approved' | 'Pending' | 'Suspended' | null>(null);
+  const [allUsers, setAllUsers] = useState<UserAccount[]>([]);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+  const [isRoleSelectionModalOpen, setIsRoleSelectionModalOpen] = useState(false);
 
   const openAuthModal = (m: 'login' | 'register') => {
     setAuthModalMode(m);
@@ -226,14 +237,15 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     let isMounted = true;
     async function loadProductionData() {
       try {
-        const [realTests, realQuestions, realTeachers, realStudents, allAttempts, realNotifs, realLogs] = await Promise.all([
+        const [realTests, realQuestions, realTeachers, realStudents, allAttempts, realNotifs, realLogs, realUsers] = await Promise.all([
           fetchRealTests(),
           fetchRealQuestions(),
           fetchRealTeachers(),
           fetchRealStudents(),
           fetchAllTestAttempts(),
           fetchRealNotifications(),
-          fetchRealAuditLogs()
+          fetchRealAuditLogs(),
+          fetchRealUsers()
         ]);
 
         if (!isMounted) return;
@@ -242,6 +254,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (realQuestions && realQuestions.length > 0) setQuestions(realQuestions);
         if (realTeachers && realTeachers.length > 0) setTeachers(realTeachers);
         if (realStudents && realStudents.length > 0) setAllStudents(realStudents);
+        if (realUsers && realUsers.length > 0) setAllUsers(realUsers);
         if (allAttempts && allAttempts.length > 0) {
           setCompletedAttempts(allAttempts);
           const computed = computeRealLeaderboards(allAttempts);
@@ -261,17 +274,34 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
-  // Sync Firebase Auth state and fetch real candidate attempts
+  // Sync Firebase Auth state, verify roles in Firestore, and fetch candidate data
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async user => {
       setFirebaseUser(user);
       if (user) {
+        // Owner verification: sandeepgarg6375494692@gmail.com is the permanent root administrator
         if (user.email === 'sandeepgarg6375494692@gmail.com') {
           setCurrentRole('admin');
+          try {
+            await setDoc(doc(db, 'users', user.uid), {
+              uid: user.uid,
+              id: user.uid,
+              name: user.displayName || 'Sandeep Garg (Owner)',
+              displayName: user.displayName || 'Sandeep Garg (Owner)',
+              email: user.email,
+              photoURL: user.photoURL || '',
+              role: 'admin',
+              accountStatus: 'Active',
+              teacherApprovalStatus: 'None',
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
+          } catch (e) {
+            console.warn('Owner profile sync notice:', e);
+          }
         } else {
           try {
             const userSnap = await getDoc(doc(db, 'users', user.uid));
-            if (userSnap.exists()) {
+            if (userSnap.exists() && userSnap.data()?.role) {
               const uData = userSnap.data();
               if (uData.role === 'admin') {
                 setCurrentRole('admin');
@@ -280,10 +310,15 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 const tchDoc = await getDoc(doc(db, 'teacherProfiles', user.uid));
                 if (tchDoc.exists()) {
                   setTeacherStatus(tchDoc.data().status);
+                } else {
+                  setTeacherStatus('Pending');
                 }
               } else {
                 setCurrentRole('student');
               }
+            } else {
+              // Role not yet assigned in Firestore! Prompt role selection modal
+              setIsRoleSelectionModalOpen(true);
             }
           } catch (e) {
             console.warn('User role fetch error:', e);
@@ -864,12 +899,15 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const createTest = (testData: Omit<Test, 'id' | 'createdAt' | 'status'>) => {
     const creatorName = firebaseUser?.displayName || (currentRole === 'admin' ? 'Administrator' : 'Educator');
+    const creatorUid = auth.currentUser?.uid || 'Faculty Educator';
+    const isSysAdmin = currentRole === 'admin' || auth.currentUser?.email === 'sandeepgarg6375494692@gmail.com';
+
     const newTest: Test = {
       ...testData,
       id: `test-${Date.now()}`,
       createdAt: new Date().toISOString(),
-      status: currentRole === 'admin' ? 'Published' : 'Pending Approval',
-      createdBy: creatorName,
+      status: isSysAdmin ? 'Published' : 'Pending Approval',
+      createdBy: creatorUid,
       teacherName: creatorName
     };
     setTests(prev => [newTest, ...prev]);
@@ -880,137 +918,286 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     addAuditLog({
       actor: getActorName(),
-      actorRole: currentRole === 'admin' ? 'Admin' : 'Teacher',
-      action: currentRole === 'admin' ? 'Created & Published Test' : 'Created Test Draft',
+      actorRole: isSysAdmin ? 'Admin' : 'Teacher',
+      action: isSysAdmin ? 'Created & Published Test' : 'Created Test Draft',
       target: testData.title,
       status: 'Success'
     });
   };
 
   const approveTest = (testId: string) => {
-    const targetTest = tests.find(t => t.id === testId);
-    setTests(prev =>
-      prev.map(t => (t.id === testId ? { ...t, status: 'Published' } : t))
-    );
+    setTests(prev => prev.map(t => (t.id === testId ? { ...t, status: 'Published' as const } : t)));
     if (auth.currentUser) {
       updateDoc(doc(db, 'tests', testId), { status: 'Published' }).catch(err => {
         handleFirestoreError(err, OperationType.UPDATE, 'tests');
       });
     }
+    const testTitle = tests.find(t => t.id === testId)?.title || testId;
     addAuditLog({
       actor: getActorName('Admin'),
       actorRole: 'Admin',
-      action: 'Approved & Published Test',
-      target: targetTest ? targetTest.title : testId,
+      action: 'Approved & Published Assessment',
+      target: testTitle,
       status: 'Success'
     });
   };
 
   const rejectTest = (testId: string, reason?: string) => {
-    const targetTest = tests.find(t => t.id === testId);
-    setTests(prev =>
-      prev.map(t => (t.id === testId ? { ...t, status: 'Rejected' } : t))
-    );
+    setTests(prev => prev.map(t => (t.id === testId ? { ...t, status: 'Draft' as const } : t)));
     if (auth.currentUser) {
-      updateDoc(doc(db, 'tests', testId), { status: 'Rejected' }).catch(err => {
+      updateDoc(doc(db, 'tests', testId), { status: 'Draft' }).catch(err => {
         handleFirestoreError(err, OperationType.UPDATE, 'tests');
       });
     }
+    const testTitle = tests.find(t => t.id === testId)?.title || testId;
     addAuditLog({
       actor: getActorName('Admin'),
       actorRole: 'Admin',
-      action: `Rejected Test: ${reason || 'Failed moderation guidelines'}`,
-      target: targetTest ? targetTest.title : testId,
+      action: `Rejected Assessment: ${reason || 'Changes Requested'}`,
+      target: testTitle,
       status: 'Warning'
     });
   };
 
   const publishTest = (testId: string) => {
-    const targetTest = tests.find(t => t.id === testId);
-    setTests(prev =>
-      prev.map(t => (t.id === testId ? { ...t, status: 'Published' } : t))
-    );
-    if (auth.currentUser) {
-      updateDoc(doc(db, 'tests', testId), { status: 'Published' }).catch(err => {
-        handleFirestoreError(err, OperationType.UPDATE, 'tests');
-      });
-    }
-    addAuditLog({
-      actor: getActorName('Admin'),
-      actorRole: 'Admin',
-      action: 'Published Test for Candidates',
-      target: targetTest ? targetTest.title : testId,
-      status: 'Success'
-    });
+    approveTest(testId);
   };
 
   const unpublishTest = (testId: string) => {
-    const targetTest = tests.find(t => t.id === testId);
-    setTests(prev =>
-      prev.map(t => (t.id === testId ? { ...t, status: 'Unpublished' } : t))
-    );
+    setTests(prev => prev.map(t => (t.id === testId ? { ...t, status: 'Draft' as const } : t)));
     if (auth.currentUser) {
-      updateDoc(doc(db, 'tests', testId), { status: 'Unpublished' }).catch(err => {
+      updateDoc(doc(db, 'tests', testId), { status: 'Draft' }).catch(err => {
         handleFirestoreError(err, OperationType.UPDATE, 'tests');
       });
     }
+    const testTitle = tests.find(t => t.id === testId)?.title || testId;
     addAuditLog({
       actor: getActorName('Admin'),
       actorRole: 'Admin',
-      action: 'Unpublished Test (Hidden from Student Catalog)',
-      target: targetTest ? targetTest.title : testId,
+      action: 'Unpublished Assessment to Draft',
+      target: testTitle,
       status: 'Notice'
     });
   };
 
   const scheduleTest = (testId: string, startDate: string, endDate: string) => {
-    const targetTest = tests.find(t => t.id === testId);
-    setTests(prev =>
-      prev.map(t => (t.id === testId ? { ...t, status: 'Scheduled', startDate, endDate } : t))
-    );
+    setTests(prev => prev.map(t => (t.id === testId ? { ...t, status: 'Scheduled' as const, startDate, endDate } : t)));
     if (auth.currentUser) {
       updateDoc(doc(db, 'tests', testId), { status: 'Scheduled', startDate, endDate }).catch(err => {
         handleFirestoreError(err, OperationType.UPDATE, 'tests');
       });
     }
+    const testTitle = tests.find(t => t.id === testId)?.title || testId;
     addAuditLog({
       actor: getActorName('Admin'),
       actorRole: 'Admin',
-      action: `Scheduled Test (${startDate} to ${endDate})`,
-      target: targetTest ? targetTest.title : testId,
+      action: `Scheduled Assessment for ${startDate} to ${endDate}`,
+      target: testTitle,
       status: 'Success'
     });
   };
 
   const archiveTest = (testId: string) => {
-    const targetTest = tests.find(t => t.id === testId);
-    setTests(prev =>
-      prev.map(t => (t.id === testId ? { ...t, status: 'Archived' } : t))
-    );
+    setTests(prev => prev.map(t => (t.id === testId ? { ...t, status: 'Archived' as const } : t)));
     if (auth.currentUser) {
       updateDoc(doc(db, 'tests', testId), { status: 'Archived' }).catch(err => {
         handleFirestoreError(err, OperationType.UPDATE, 'tests');
       });
     }
+    const testTitle = tests.find(t => t.id === testId)?.title || testId;
     addAuditLog({
       actor: getActorName('Admin'),
       actorRole: 'Admin',
-      action: 'Archived Test Record',
-      target: targetTest ? targetTest.title : testId,
+      action: 'Archived Assessment from Catalog',
+      target: testTitle,
+      status: 'Warning'
+    });
+  };
+
+  const updateTest = async (testId: string, updatedData: Partial<Test>) => {
+    const existingTest = tests.find(t => t.id === testId);
+    if (!existingTest) throw new Error('Test not found');
+
+    const currentUserUid = auth.currentUser?.uid;
+    const isOwner = currentUserUid && existingTest.createdBy === currentUserUid;
+    const isSysAdmin = currentRole === 'admin' || auth.currentUser?.email === 'sandeepgarg6375494692@gmail.com';
+
+    if (!isOwner && !isSysAdmin) {
+      throw new Error('Unauthorized: You can only edit tests you created.');
+    }
+
+    // Critical security: If a teacher modifies a test, preserve createdBy UID.
+    // If test was already 'Published', modifying it resets status to 'Pending Approval' for moderation.
+    let newStatus = updatedData.status || existingTest.status;
+    if (!isSysAdmin && existingTest.status === 'Published') {
+      newStatus = 'Pending Approval';
+    }
+
+    const sanitized: Partial<Test> = {
+      ...updatedData,
+      status: newStatus,
+      createdBy: existingTest.createdBy // Protected: ownership cannot be transferred!
+    };
+
+    setTests(prev => prev.map(t => (t.id === testId ? { ...t, ...sanitized } : t)));
+
+    if (auth.currentUser) {
+      await updateDoc(doc(db, 'tests', testId), sanitized).catch(err => {
+        handleFirestoreError(err, OperationType.UPDATE, 'tests');
+      });
+    }
+
+    addAuditLog({
+      actor: getActorName(),
+      actorRole: isSysAdmin ? 'Admin' : 'Teacher',
+      action: `Updated Test: ${existingTest.title} (Status: ${newStatus})`,
+      target: existingTest.title,
+      status: 'Success'
+    });
+  };
+
+  const deleteTest = async (testId: string) => {
+    const existingTest = tests.find(t => t.id === testId);
+    if (!existingTest) throw new Error('Test not found');
+
+    const currentUserUid = auth.currentUser?.uid;
+    const isOwner = currentUserUid && existingTest.createdBy === currentUserUid;
+    const isSysAdmin = currentRole === 'admin' || auth.currentUser?.email === 'sandeepgarg6375494692@gmail.com';
+
+    if (!isOwner && !isSysAdmin) {
+      throw new Error('Unauthorized: You can only delete tests you created.');
+    }
+
+    if (!isSysAdmin && existingTest.status === 'Published') {
+      throw new Error('Cannot delete a published test. Request an administrator to unpublish or archive.');
+    }
+
+    setTests(prev => prev.filter(t => t.id !== testId));
+
+    if (auth.currentUser) {
+      await deleteDoc(doc(db, 'tests', testId)).catch(err => {
+        handleFirestoreError(err, OperationType.DELETE, 'tests');
+      });
+    }
+
+    addAuditLog({
+      actor: getActorName(),
+      actorRole: isSysAdmin ? 'Admin' : 'Teacher',
+      action: `Deleted Test Document: ${existingTest.title}`,
+      target: existingTest.title,
+      status: 'Warning'
+    });
+  };
+
+  const promoteUserToAdmin = async (targetUid: string) => {
+    if (auth.currentUser?.email !== 'sandeepgarg6375494692@gmail.com') {
+      throw new Error('Unauthorized: Only the verified platform owner (sandeepgarg6375494692@gmail.com) can authorize Administrators.');
+    }
+    await setDoc(doc(db, 'users', targetUid), {
+      role: 'admin',
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+
+    setAllUsers(prev => prev.map(u => u.uid === targetUid ? { ...u, role: 'admin' } : u));
+
+    addAuditLog({
+      actor: 'Sandeep Garg (Root Owner)',
+      actorRole: 'Admin',
+      action: `Granted Administrator Privileges for UID ${targetUid}`,
+      target: `UID: ${targetUid}`,
+      status: 'Success'
+    });
+  };
+
+  const revokeAdminRole = async (targetUid: string, fallbackRole: 'student' | 'teacher' = 'student') => {
+    if (auth.currentUser?.email !== 'sandeepgarg6375494692@gmail.com') {
+      throw new Error('Unauthorized: Only the verified platform owner can revoke Administrator privileges.');
+    }
+    await setDoc(doc(db, 'users', targetUid), {
+      role: fallbackRole,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+
+    setAllUsers(prev => prev.map(u => u.uid === targetUid ? { ...u, role: fallbackRole } : u));
+
+    addAuditLog({
+      actor: 'Sandeep Garg (Root Owner)',
+      actorRole: 'Admin',
+      action: `Revoked Admin role for UID ${targetUid} to ${fallbackRole}`,
+      target: `UID: ${targetUid}`,
       status: 'Notice'
     });
   };
 
-  const deleteTest = (testId: string) => {
-    const targetTest = tests.find(t => t.id === testId);
-    setTests(prev => prev.filter(t => t.id !== testId));
-    addAuditLog({
-      actor: getActorName('Admin'),
-      actorRole: 'Admin',
-      action: 'Deleted Test Document',
-      target: targetTest ? targetTest.title : testId,
-      status: 'Warning'
-    });
+  const assignRoleToCurrentUser = async (
+    role: 'student' | 'teacher',
+    details?: { qualification?: string; specialization?: string }
+  ) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error('No authenticated user session found.');
+
+    const nowIso = new Date().toISOString();
+    const isOwner = user.email === 'sandeepgarg6375494692@gmail.com';
+    const finalRole: UserRole = isOwner ? 'admin' : role;
+    const approvalStatus = finalRole === 'teacher' ? 'Pending' : 'None';
+
+    const userData: UserAccount = {
+      uid: user.uid,
+      id: user.uid,
+      name: user.displayName || (finalRole === 'teacher' ? 'Faculty Educator' : 'Candidate Aspirant'),
+      displayName: user.displayName || (finalRole === 'teacher' ? 'Faculty Educator' : 'Candidate Aspirant'),
+      email: user.email || '',
+      photoURL: user.photoURL || '',
+      role: finalRole,
+      accountStatus: 'Active',
+      teacherApprovalStatus: approvalStatus,
+      createdAt: nowIso,
+      updatedAt: nowIso
+    };
+
+    // 1. Save to users/{uid}
+    await setDoc(doc(db, 'users', user.uid), userData, { merge: true });
+
+    // 2. Initialize studentProfiles/{uid} for BOTH student and teacher (enables Part 4: Teacher can use student panel!)
+    await setDoc(doc(db, 'studentProfiles', user.uid), {
+      uid: user.uid,
+      rankTitle: finalRole === 'teacher' ? 'Educator Aspirant' : 'Academy Aspirant',
+      totalTestsAttempted: 0,
+      totalQuestionsSolved: 0,
+      averageAccuracy: 0,
+      lifetimePoints: 0,
+      currentDailyPoints: 0,
+      currentWeeklyPoints: 0,
+      currentGlobalRank: 0,
+      streakDays: 0
+    }, { merge: true });
+
+    // 3. If teacher, create teacherProfiles/{uid} with Pending status
+    if (finalRole === 'teacher') {
+      await setDoc(doc(db, 'teacherProfiles', user.uid), {
+        id: user.uid,
+        name: userData.name,
+        email: userData.email,
+        qualification: details?.qualification?.trim() || 'Academic Faculty',
+        specialization: details?.specialization?.trim() || 'General Studies & CSAT',
+        status: 'Pending',
+        testsCreated: 0,
+        joinedDate: new Date().toLocaleDateString('en-GB')
+      });
+      setTeacherStatus('Pending');
+    }
+
+    setCurrentRole(finalRole);
+    setIsRoleSelectionModalOpen(false);
+
+    // 4. Role-based Navigation Redirection
+    if (finalRole === 'admin') {
+      setActiveSection('admin-dashboard');
+    } else if (finalRole === 'teacher') {
+      setActiveSection('teacher-pending');
+    } else {
+      setActiveSection('student-dashboard');
+    }
   };
 
   // Admin Specific Controls
@@ -1248,6 +1435,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         scheduleTest,
         archiveTest,
         deleteTest,
+        updateTest,
+        allUsers,
+        promoteUserToAdmin,
+        revokeAdminRole,
+        isRoleSelectionModalOpen,
+        setIsRoleSelectionModalOpen,
+        assignRoleToCurrentUser,
         updateStudentStatus,
         approveTeacher,
         rejectTeacher,

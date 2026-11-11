@@ -44,17 +44,17 @@ export const Hero: React.FC = () => {
           </p>
 
           {/* CTA Buttons */}
-          <div className="pt-2 flex flex-wrap items-center justify-center gap-4">
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full max-w-md mx-auto">
             <button
               onClick={() => setActiveSection('student-new-tests')}
-              className="px-7 py-3.5 rounded-xl bg-gradient-to-r from-[#EA580C] to-[#FF8C32] hover:from-[#FF8C32] hover:to-amber-400 text-slate-950 font-bold text-sm sm:text-base shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition flex items-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-gradient-to-r from-[#EA580C] to-[#FF8C32] hover:from-[#FF8C32] hover:to-amber-400 text-slate-950 font-bold text-sm sm:text-base shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
             >
               <span>Explore Tests</span>
               <ArrowRight className="w-4 h-4 text-slate-950" />
             </button>
             <button
               onClick={() => setActiveSection('student-practice')}
-              className="px-7 py-3.5 rounded-xl glass-card hover:border-[#FF8C32]/50 text-slate-200 hover:text-white font-semibold text-sm sm:text-base transition hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-7 py-3.5 rounded-xl glass-card hover:border-[#FF8C32]/50 text-slate-200 hover:text-white font-semibold text-sm sm:text-base transition hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
             >
               <BookOpen className="w-4 h-4 text-[#FF8C32]" />
               <span>Start Practicing</span>

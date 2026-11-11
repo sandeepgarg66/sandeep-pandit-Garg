@@ -21,7 +21,8 @@ import {
   AdminAuditLog,
   NotificationAnnouncement,
   LeaderboardEntry,
-  BookmarkedQuestion
+  BookmarkedQuestion,
+  UserAccount
 } from '../types/quiz';
 import { AdminStudentItem } from '../context/QuizContext';
 
@@ -279,3 +280,32 @@ export function computeRealLeaderboards(
 
   return { daily, weekly, global };
 }
+
+export async function fetchRealUsers(): Promise<UserAccount[]> {
+  try {
+    const q = query(collection(db, 'users'));
+    const snap = await getDocs(q);
+    const users: UserAccount[] = [];
+    snap.forEach(d => {
+      const u = d.data();
+      users.push({
+        uid: d.id,
+        id: d.id,
+        name: u.displayName || u.name || 'User',
+        displayName: u.displayName || u.name || 'User',
+        email: u.email || '',
+        photoURL: u.photoURL || '',
+        role: u.role || 'student',
+        accountStatus: u.accountStatus || 'Active',
+        teacherApprovalStatus: u.teacherApprovalStatus || (u.role === 'teacher' ? 'Pending' : 'None'),
+        createdAt: u.createdAt || new Date().toISOString(),
+        updatedAt: u.updatedAt || new Date().toISOString()
+      });
+    });
+    return users;
+  } catch (error) {
+    console.warn('Failed to fetch users from Firestore:', error);
+    return [];
+  }
+}
+

@@ -64,16 +64,24 @@ export const TeacherPendingScreen: React.FC = () => {
         )}
 
         {/* Actions */}
-        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          {/* Part 4: Pending Teacher can immediately use Student Panel */}
+          <button
+            onClick={() => setActiveSection('student-dashboard')}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#EA580C] to-[#FF8C32] hover:opacity-95 text-slate-950 font-bold text-xs shadow-lg transition flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <GraduationCap className="w-4 h-4" />
+            <span>Open Student Panel (Practice & Attempt Tests)</span>
+          </button>
           <button
             onClick={() => setActiveSection('home')}
-            className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs transition cursor-pointer"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs transition cursor-pointer"
           >
             Explore Public Tests
           </button>
           <button
             onClick={logout}
-            className="px-5 py-2.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/30 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/30 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Sign Out</span>

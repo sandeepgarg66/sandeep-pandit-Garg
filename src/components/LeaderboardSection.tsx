@@ -43,9 +43,9 @@ export const LeaderboardSection: React.FC = () => {
   };
 
   return (
-    <section className="py-14 bg-[#0B0F19]">
+    <section className="w-full max-w-full overflow-hidden py-10 sm:py-14 bg-[#0B0F19]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 mb-8">
           <div>
             <div className="text-xs uppercase tracking-wider text-[#FF8C32] font-semibold mb-1 flex items-center gap-1.5">
               <Trophy className="w-3.5 h-3.5" />
@@ -60,10 +60,10 @@ export const LeaderboardSection: React.FC = () => {
           </div>
 
           {/* Leaderboard Tabs */}
-          <div className="flex bg-slate-900 p-1 rounded-xl border border-white/10">
+          <div className="flex bg-slate-900 p-1 rounded-xl border border-white/10 w-full sm:w-auto overflow-x-auto scrollbar-none">
             <button
               onClick={() => setActiveTab('daily')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer text-center whitespace-nowrap ${
                 activeTab === 'daily'
                   ? 'bg-[#FF8C32] text-slate-950 font-bold'
                   : 'text-slate-400 hover:text-white'
@@ -73,7 +73,7 @@ export const LeaderboardSection: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('weekly')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer text-center whitespace-nowrap ${
                 activeTab === 'weekly'
                   ? 'bg-[#FF8C32] text-slate-950 font-bold'
                   : 'text-slate-400 hover:text-white'
@@ -83,7 +83,7 @@ export const LeaderboardSection: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('global')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer text-center whitespace-nowrap ${
                 activeTab === 'global'
                   ? 'bg-[#FF8C32] text-slate-950 font-bold'
                   : 'text-slate-400 hover:text-white'
@@ -247,11 +247,11 @@ export const LeaderboardSection: React.FC = () => {
             </table>
           </div>
 
-          <div className="p-4 bg-slate-900/60 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
+          <div className="p-4 bg-slate-900/60 border-t border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-slate-400">
             <span>Points calculated strictly from authorized published assessments.</span>
             <button
               onClick={() => setActiveSection('student-leaderboard')}
-              className="text-[#FF8C32] hover:underline font-semibold"
+              className="text-[#FF8C32] hover:underline font-semibold cursor-pointer"
             >
               View Full Leaderboard & Filter by Subject
             </button>

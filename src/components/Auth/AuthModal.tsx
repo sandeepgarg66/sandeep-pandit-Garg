@@ -31,7 +31,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   initialMode = 'login'
 }) => {
-  const { setCurrentRole, setActiveSection, setStudentProfile } = useQuiz();
+  const { setCurrentRole, setActiveSection, setStudentProfile, setIsRoleSelectionModalOpen } = useQuiz();
 
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [regStep, setRegStep] = useState<RegistrationStep>('category_selection');
@@ -79,7 +79,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       const user = await loginWithEmailPassword(email.trim(), password);
 
-      // Check if Admin email
+      // Check if Owner Admin email
       if (user.email === 'sandeepgarg6375494692@gmail.com') {
         setCurrentRole('admin');
         setActiveSection('admin-dashboard');
@@ -91,7 +91,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       const userDocRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userDocRef);
 
-      if (userSnap.exists()) {
+      if (userSnap.exists() && userSnap.data().role) {
         const userData = userSnap.data();
         if (userData.role === 'admin') {
           setCurrentRole('admin');
@@ -111,13 +111,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           setCurrentRole('student');
           setActiveSection('student-dashboard');
         }
+        onClose();
       } else {
-        // Default to student if not yet populated
-        setCurrentRole('student');
-        setActiveSection('student-dashboard');
+        // No role assigned yet -> trigger Part 2 User Role Selection
+        onClose();
+        setIsRoleSelectionModalOpen(true);
       }
-
-      onClose();
     } catch (err: any) {
       setErrorMessage(err.message || 'Invalid email or password. Please try again.');
     } finally {
@@ -145,9 +144,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       const userDocRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userDocRef);
 
-      if (userSnap.exists()) {
+      if (userSnap.exists() && userSnap.data().role) {
         const role = userSnap.data().role;
-        if (role === 'teacher') {
+        if (role === 'admin') {
+          setCurrentRole('admin');
+          setActiveSection('admin-dashboard');
+        } else if (role === 'teacher') {
           const tchDoc = await getDoc(doc(db, 'teacherProfiles', user.uid));
           if (tchDoc.exists() && tchDoc.data().status === 'Approved') {
             setCurrentRole('teacher');
@@ -160,35 +162,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           setCurrentRole('student');
           setActiveSection('student-dashboard');
         }
+        onClose();
       } else {
-        // If first-time Google login, create Student profile by default
-        await setDoc(userDocRef, {
-          id: user.uid,
-          email: user.email || '',
-          displayName: user.displayName || 'Candidate',
-          role: 'student',
-          photoURL: user.photoURL || '',
-          createdAt: new Date().toISOString()
-        });
-
-        await setDoc(doc(db, 'studentProfiles', user.uid), {
-          uid: user.uid,
-          rankTitle: 'Genin Aspirant',
-          totalTestsAttempted: 0,
-          totalQuestionsSolved: 0,
-          averageAccuracy: 0,
-          lifetimePoints: 0,
-          currentDailyPoints: 0,
-          currentWeeklyPoints: 0,
-          currentGlobalRank: 420,
-          streakDays: 1
-        });
-
-        setCurrentRole('student');
-        setActiveSection('student-dashboard');
+        // First-time Google user without role -> Show User Category Selection Modal!
+        onClose();
+        setIsRoleSelectionModalOpen(true);
       }
-
-      onClose();
     } catch (err: any) {
       setErrorMessage(err.message || 'Google authentication was cancelled.');
     } finally {
@@ -307,8 +286,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
-      <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-white/20 max-w-lg w-full space-y-6 relative overflow-hidden max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md">
+      <div className="glass-panel p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/20 max-w-lg w-full space-y-5 sm:space-y-6 relative overflow-hidden max-h-[92vh] overflow-y-auto custom-scrollbar shadow-2xl">
         {/* Glow */}
         <div className="absolute -top-16 -right-16 w-48 h-48 bg-[#FF8C32]/20 rounded-full blur-3xl pointer-events-none" />
 

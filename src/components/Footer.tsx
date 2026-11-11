@@ -6,10 +6,10 @@ export const Footer: React.FC = () => {
   const { setActiveSection } = useQuiz();
 
   return (
-    <footer className="bg-[#0B0F19] text-slate-400 border-t border-white/10 text-xs">
+    <footer className="w-full max-w-full overflow-hidden bg-[#0B0F19] text-slate-400 border-t border-white/10 text-xs">
       {/* Top Ninja Banner */}
-      <div className="bg-gradient-to-r from-orange-950/40 via-slate-900 to-orange-950/40 py-4 px-4 text-center border-b border-white/5">
-        <p className="font-mono text-xs text-[#FF8C32] tracking-wider">
+      <div className="bg-gradient-to-r from-orange-950/40 via-slate-900 to-orange-950/40 py-3.5 px-3 text-center border-b border-white/5">
+        <p className="font-mono text-[11px] sm:text-xs text-[#FF8C32] tracking-wider leading-relaxed">
           ⚡ "A TRUE SHINOBI NEVER GIVES UP ON EXCELLENCE." — STANDARDIZED OMR EVALUATION ENGINE
         </p>
       </div>
@@ -104,8 +104,8 @@ export const Footer: React.FC = () => {
             </h4>
             <ul className="space-y-2 text-xs">
               <li className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-[#FF8C32]" />
-                <span className="text-slate-300">exam.support@sanskar-narutoquiz.edu</span>
+                <Mail className="w-4 h-4 text-[#FF8C32] shrink-0" />
+                <span className="text-slate-300 break-all">exam.support@sanskar-narutoquiz.edu</span>
               </li>
               <li className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 text-[#FF8C32] shrink-0 mt-0.5" />
