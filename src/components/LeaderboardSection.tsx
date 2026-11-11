@@ -4,7 +4,7 @@ import { useQuiz } from '../context/QuizContext';
 import { LeaderboardEntry } from '../types/quiz';
 
 export const LeaderboardSection: React.FC = () => {
-  const { dailyLeaderboard, weeklyLeaderboard, globalLeaderboard, setActiveSection } = useQuiz();
+  const { dailyLeaderboard, weeklyLeaderboard, globalLeaderboard, setActiveSection, studentProfile } = useQuiz();
   const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'global'>('global');
 
   const currentList =
@@ -94,86 +94,116 @@ export const LeaderboardSection: React.FC = () => {
           </div>
         </div>
 
-        {/* Podium Top 3 Spotlight */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          {currentList.slice(0, 3).map((student, idx) => {
-            const podiumOrder = idx === 0 ? 'order-1 md:order-2 md:-translate-y-2' : idx === 1 ? 'order-2 md:order-1' : 'order-3 md:order-3';
-            const isFirst = student.rank === 1;
+        {/* Empty or Loaded Leaderboard Display */}
+        {currentList.length === 0 ? (
+          <div className="glass-card p-12 sm:p-16 rounded-3xl border border-white/10 text-center max-w-xl mx-auto my-6 space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto shadow-inner">
+              <Trophy className="w-8 h-8 opacity-80" />
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="font-heading font-bold text-lg text-white">
+                No leaderboard data available yet
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed max-w-md mx-auto">
+                Rankings are calculated dynamically from genuine candidate test submissions. Once registered students attempt and submit published examinations, live standings will appear here.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Podium Top 3 Spotlight */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              {currentList.slice(0, 3).map((student, idx) => {
+                const podiumOrder =
+                  idx === 0
+                    ? 'order-1 md:order-2 md:-translate-y-2'
+                    : idx === 1
+                    ? 'order-2 md:order-1'
+                    : 'order-3 md:order-3';
+                const isFirst = student.rank === 1;
 
-            return (
-              <div
-                key={student.studentId}
-                className={`glass-card p-6 rounded-2xl border flex flex-col items-center text-center relative overflow-hidden ${podiumOrder} ${
-                  isFirst ? 'border-amber-400/50 shadow-lg shadow-amber-500/10' : 'border-white/10'
-                }`}
-              >
-                {isFirst && (
-                  <div className="absolute top-3 right-3 text-amber-400">
-                    <Crown className="w-5 h-5" />
-                  </div>
-                )}
+                return (
+                  <div
+                    key={student.studentId}
+                    className={`glass-card p-6 rounded-2xl border flex flex-col items-center text-center relative overflow-hidden ${podiumOrder} ${
+                      isFirst ? 'border-amber-400/50 shadow-lg shadow-amber-500/10' : 'border-white/10'
+                    }`}
+                  >
+                    {isFirst && (
+                      <div className="absolute top-3 right-3 text-amber-400">
+                        <Crown className="w-5 h-5" />
+                      </div>
+                    )}
 
-                <div className="relative mb-3">
-                  <img
-                    src={student.avatar}
-                    alt={student.name}
-                    className="w-16 h-16 rounded-full object-cover border-2 border-white/20"
-                  />
-                  <span className={`absolute -bottom-2 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full border text-xs font-mono font-bold flex items-center justify-center ${getRankBadgeStyle(student.rank)}`}>
-                    #{student.rank}
-                  </span>
-                </div>
+                    <div className="relative mb-3">
+                      <img
+                        src={student.avatar}
+                        alt={student.name}
+                        className="w-16 h-16 rounded-full object-cover border-2 border-white/20"
+                      />
+                      <span
+                        className={`absolute -bottom-2 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full border text-xs font-mono font-bold flex items-center justify-center ${getRankBadgeStyle(
+                          student.rank
+                        )}`}
+                      >
+                        #{student.rank}
+                      </span>
+                    </div>
 
-                <h3 className="font-heading font-bold text-base text-white mt-1">
-                  {student.name}
-                </h3>
-                <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full mt-1 ${getNinjaBadgeColor(student.badge)}`}>
-                  {student.badge}
-                </span>
-
-                <div className="mt-4 pt-3 border-t border-white/10 w-full grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block">Total Points</span>
-                    <span className="font-mono font-extrabold text-[#FF8C32] text-sm">
-                      {student.points.toLocaleString()}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block">Accuracy</span>
-                    <span className="font-mono font-bold text-emerald-400 text-sm">
-                      {student.accuracy}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Full Table Ranks 4 to 10 */}
-        <div className="glass-panel rounded-2xl overflow-hidden border border-white/10">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm">
-              <thead className="bg-slate-900/80 text-slate-400 text-xs uppercase tracking-wider border-b border-white/10">
-                <tr>
-                  <th className="px-5 py-3.5 text-center">Rank</th>
-                  <th className="px-5 py-3.5">Shinobi Student</th>
-                  <th className="px-5 py-3.5 text-center">Class / Badge</th>
-                  <th className="px-5 py-3.5 text-center">Tests Taken</th>
-                  <th className="px-5 py-3.5 text-center">Accuracy</th>
-                  <th className="px-5 py-3.5 text-right">Points</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 font-medium">
-                {currentList.map((entry) => {
-                  const isUser = entry.studentId === 'usr_naruto_student_01';
-                  return (
-                    <tr
-                      key={entry.studentId}
-                      className={`hover:bg-white/5 transition ${
-                        isUser ? 'bg-[#FF8C32]/10 border-l-2 border-[#FF8C32]' : ''
-                      }`}
+                    <h3 className="font-heading font-bold text-base text-white mt-1">
+                      {student.name}
+                    </h3>
+                    <span
+                      className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full mt-1 ${getNinjaBadgeColor(
+                        student.badge
+                      )}`}
                     >
+                      {student.badge}
+                    </span>
+
+                    <div className="mt-4 pt-3 border-t border-white/10 w-full grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">Total Points</span>
+                        <span className="font-mono font-extrabold text-[#FF8C32] text-sm">
+                          {student.points.toLocaleString()}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">Accuracy</span>
+                        <span className="font-mono font-bold text-emerald-400 text-sm">
+                          {student.accuracy}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Full Table Ranks */}
+            <div className="glass-panel rounded-2xl overflow-hidden border border-white/10">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs sm:text-sm">
+                  <thead className="bg-slate-900/80 text-slate-400 text-xs uppercase tracking-wider border-b border-white/10">
+                    <tr>
+                      <th className="px-5 py-3.5 text-center">Rank</th>
+                      <th className="px-5 py-3.5">Candidate Aspirant</th>
+                      <th className="px-5 py-3.5 text-center">Class / Badge</th>
+                      <th className="px-5 py-3.5 text-center">Tests Taken</th>
+                      <th className="px-5 py-3.5 text-center">Accuracy</th>
+                      <th className="px-5 py-3.5 text-right">Points</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 font-medium">
+                    {currentList.map(entry => {
+                      const isUser = Boolean(studentProfile.uid && entry.studentId === studentProfile.uid);
+                      return (
+                        <tr
+                          key={entry.studentId}
+                          className={`hover:bg-white/5 transition ${
+                            isUser ? 'bg-[#FF8C32]/10 border-l-2 border-[#FF8C32]' : ''
+                          }`}
+                        >
                       <td className="px-5 py-3 text-center">
                         <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full font-mono text-xs font-bold border ${getRankBadgeStyle(entry.rank)}`}>
                           {entry.rank}
@@ -227,6 +257,8 @@ export const LeaderboardSection: React.FC = () => {
             </button>
           </div>
         </div>
+        </>
+        )}
       </div>
     </section>
   );

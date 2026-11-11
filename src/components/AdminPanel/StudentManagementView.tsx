@@ -97,8 +97,14 @@ export const StudentManagementView: React.FC = () => {
             <tbody className="divide-y divide-white/5 font-medium">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-8 text-center text-xs text-slate-400">
-                    No candidates matched your filter criteria.
+                  <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
+                    <Users className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+                    <p className="text-sm font-semibold text-slate-300">
+                      {searchTerm || filterStatus !== 'All' ? 'No candidates matched your filter criteria.' : 'No candidates registered yet.'}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {searchTerm || filterStatus !== 'All' ? 'Try adjusting your search query or status filter.' : 'When students sign up, their profiles will automatically be registered here.'}
+                    </p>
                   </td>
                 </tr>
               ) : (

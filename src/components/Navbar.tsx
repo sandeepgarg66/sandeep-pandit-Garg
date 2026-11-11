@@ -12,7 +12,8 @@ export const Navbar: React.FC = () => {
     studentProfile,
     firebaseUser,
     loginWithGoogle,
-    logout
+    logout,
+    openAuthModal
   } = useQuiz();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -152,12 +153,16 @@ export const Navbar: React.FC = () => {
               </button>
             </div>
 
-            {/* Google Firebase Auth Button */}
+            {/* Authentication Buttons (Login & Register Modal) */}
             {firebaseUser ? (
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => handleNav('student-dashboard')}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-[#FF8C32]/40 hover:border-[#FF8C32] transition group"
+                  onClick={() => {
+                    if (currentRole === 'admin') handleNav('admin-dashboard');
+                    else if (currentRole === 'teacher') handleNav('teacher-dashboard');
+                    else handleNav('student-dashboard');
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-[#FF8C32]/40 hover:border-[#FF8C32] transition group cursor-pointer"
                   title={firebaseUser.email || ''}
                 >
                   <img
@@ -171,20 +176,28 @@ export const Navbar: React.FC = () => {
                 </button>
                 <button
                   onClick={logout}
-                  className="p-2 text-slate-400 hover:text-rose-300 hover:bg-rose-950/30 rounded-xl transition"
+                  className="p-2 text-slate-400 hover:text-rose-300 hover:bg-rose-950/30 rounded-xl transition cursor-pointer"
                   title="Sign Out"
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
               </div>
             ) : (
-              <button
-                onClick={loginWithGoogle}
-                className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-[#FF8C32] hover:opacity-95 text-white font-bold text-xs shadow-md transition cursor-pointer"
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Google Sign In</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openAuthModal('login')}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-200 hover:text-white hover:bg-white/5 border border-white/10 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <LogIn className="w-3.5 h-3.5 text-[#FF8C32]" />
+                  <span>Login</span>
+                </button>
+                <button
+                  onClick={() => openAuthModal('register')}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#FF8C32] text-slate-950 hover:bg-orange-400 shadow-sm transition cursor-pointer"
+                >
+                  Register
+                </button>
+              </div>
             )}
 
             {/* Mobile Menu Toggle */}
@@ -273,13 +286,27 @@ export const Navbar: React.FC = () => {
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={loginWithGoogle}
-                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-[#FF8C32] text-white font-bold text-xs flex items-center justify-center gap-2"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span>Sign in with Google</span>
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      openAuthModal('login');
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-slate-800 text-white font-semibold text-xs flex items-center justify-center gap-2 border border-white/10"
+                  >
+                    <LogIn className="w-4 h-4 text-[#FF8C32]" />
+                    <span>Login</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      openAuthModal('register');
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-[#FF8C32] text-slate-950 font-bold text-xs flex items-center justify-center"
+                  >
+                    <span>Register</span>
+                  </button>
+                </div>
               )}
             </div>
           </div>

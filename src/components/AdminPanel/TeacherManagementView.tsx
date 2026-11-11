@@ -44,7 +44,7 @@ export const TeacherManagementView: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono text-purple-300 bg-purple-500/10 px-3 py-1.5 rounded-xl border border-purple-500/20">
-            Total Jonin Educators: {teachers.length}
+            Total Registered Educators: {teachers.length}
           </span>
         </div>
       </div>
@@ -81,22 +81,33 @@ export const TeacherManagementView: React.FC = () => {
         </div>
       </div>
 
-      {/* Teacher Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredTeachers.map(tch => {
-          const authorTests = tests.filter(t => t.teacherName === tch.name || t.createdBy === tch.name);
+      {/* Teacher Cards Grid or Empty State */}
+      {filteredTeachers.length === 0 ? (
+        <div className="glass-panel p-12 rounded-3xl border border-white/10 text-center space-y-3">
+          <GraduationCap className="w-12 h-12 text-slate-600 mx-auto" />
+          <h3 className="font-heading font-bold text-lg text-white">No Registered Educators Found</h3>
+          <p className="text-xs text-slate-400 max-w-md mx-auto">
+            {searchTerm || statusFilter !== 'All'
+              ? 'No educators match your search criteria. Try resetting your filter or search query.'
+              : 'When educators register and submit their teaching credentials, their verification profiles will appear here for administrative approval.'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredTeachers.map(tch => {
+            const authorTests = tests.filter(t => t.teacherName === tch.name || t.createdBy === tch.name);
 
-          return (
-            <div
-              key={tch.id}
-              className="glass-card p-5 rounded-2xl border border-white/10 flex flex-col justify-between space-y-4 hover:border-purple-500/30 transition"
-            >
-              <div className="flex items-start gap-4">
-                <img
-                  src={tch.photoURL}
-                  alt={tch.name}
-                  className="w-14 h-14 rounded-2xl object-cover border border-purple-500/30 shrink-0"
-                />
+            return (
+              <div
+                key={tch.id}
+                className="glass-card p-5 rounded-2xl border border-white/10 flex flex-col justify-between space-y-4 hover:border-purple-500/30 transition"
+              >
+                <div className="flex items-start gap-4">
+                  <img
+                    src={tch.photoURL || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(tch.email || tch.name)}`}
+                    alt={tch.name}
+                    className="w-14 h-14 rounded-2xl object-cover border border-purple-500/30 shrink-0"
+                  />
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
@@ -178,7 +189,8 @@ export const TeacherManagementView: React.FC = () => {
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

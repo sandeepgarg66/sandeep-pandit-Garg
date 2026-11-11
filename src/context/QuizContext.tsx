@@ -39,7 +39,27 @@ import {
   logOutUser
 } from '../lib/firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  initializeExamSession,
+  persistExamSession,
+  clearExamSession,
+  calculateAndPersistTestResult,
+  checkStudentAttempted,
+  fetchCandidateSubmissions,
+  ActiveExamSession
+} from '../lib/examService';
+import {
+  fetchRealTests,
+  fetchRealQuestions,
+  fetchRealTeachers,
+  fetchRealStudents,
+  fetchAllTestAttempts,
+  fetchRealNotifications,
+  fetchRealAuditLogs,
+  fetchRealBookmarks,
+  computeRealLeaderboards
+} from '../lib/productionDataService';
 
 export interface AdminStudentItem {
   id: string;
@@ -59,6 +79,8 @@ interface ActiveExamState {
   questionStates: Record<string, QuestionState>;
   remainingSeconds: number;
   lastAttemptResult: TestAttempt | null;
+  serverDeadlineMs: number;
+  startedAt: string;
 }
 
 interface QuizContextType {
@@ -76,6 +98,7 @@ interface QuizContextType {
   tests: Test[];
   questions: Question[];
   studentProfile: StudentProfile;
+  setStudentProfile: React.Dispatch<React.SetStateAction<StudentProfile>>;
   completedAttempts: TestAttempt[];
   bookmarks: BookmarkedQuestion[];
   dailyLeaderboard: typeof DAILY_LEADERBOARD;
@@ -111,6 +134,8 @@ interface QuizContextType {
 
   // Teacher & Admin Actions
   addQuestion: (q: Omit<Question, 'id'>) => void;
+  addBulkQuestions: (questionsList: Omit<Question, 'id'>[]) => { added: number; duplicates: number; failed: number };
+  addQuestionsToTest: (testId: string, questionsList: Question[]) => void;
   updateQuestion: (id: string, updated: Partial<Question>) => void;
   deleteQuestion: (id: string) => void;
   createTest: (testData: Omit<Test, 'id' | 'createdAt' | 'status'>) => void;
@@ -137,8 +162,14 @@ interface QuizContextType {
   updateSubject: (id: string, updated: Partial<SubjectItem>) => void;
   resetLeaderboard: (type: 'daily' | 'weekly') => void;
 
-  // Real Firebase Auth
+  // Real Firebase Auth & Modal Controls
   firebaseUser: FirebaseUser | null;
+  teacherStatus: 'Approved' | 'Pending' | 'Suspended' | null;
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (open: boolean) => void;
+  authModalMode: 'login' | 'register';
+  openAuthModal: (mode: 'login' | 'register') => void;
+  closeAuthModal: () => void;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -165,16 +196,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [dailyLeaderboardState, setDailyLeaderboardState] = useState(DAILY_LEADERBOARD);
   const [weeklyLeaderboardState, setWeeklyLeaderboardState] = useState(WEEKLY_LEADERBOARD);
 
-  const [allStudents, setAllStudents] = useState<AdminStudentItem[]>([
-    { id: 'usr_naruto_student_01', name: 'Uzumaki Sanskar', email: 'sanskar.quiz@leafvillage.edu', attempts: 19, points: 3420, rank: 4, status: 'Active' },
-    { id: 's-01', name: 'Itachi Uchiha', email: 'itachi.u@leafvillage.edu', attempts: 112, points: 12480, rank: 1, status: 'Active' },
-    { id: 's-02', name: 'Sasuke Uchiha', email: 'sasuke.u@leafvillage.edu', attempts: 98, points: 10640, rank: 3, status: 'Active' },
-    { id: 's-03', name: 'Shikamaru Nara', email: 'shikamaru.n@leafvillage.edu', attempts: 108, points: 11920, rank: 2, status: 'Active' },
-    { id: 's-05', name: 'Neji Hyuga', email: 'neji.h@leafvillage.edu', attempts: 24, points: 3290, rank: 5, status: 'Active' },
-    { id: 's-06', name: 'Gaara of the Sand', email: 'gaara.kazekage@sandvillage.edu', attempts: 31, points: 3180, rank: 6, status: 'Active' },
-    { id: 's-07', name: 'Hinata Hyuga', email: 'hinata.h@leafvillage.edu', attempts: 18, points: 3050, rank: 7, status: 'Active' },
-    { id: 's-08', name: 'Rock Lee', email: 'rock.lee@leafvillage.edu', attempts: 45, points: 2940, rank: 8, status: 'Active' },
-  ]);
+  const [allStudents, setAllStudents] = useState<AdminStudentItem[]>([]);
 
   const [activeExam, setActiveExam] = useState<ActiveExamState>({
     test: null,
@@ -183,26 +205,158 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     answers: {},
     questionStates: {},
     remainingSeconds: 0,
-    lastAttemptResult: null
+    lastAttemptResult: null,
+    serverDeadlineMs: 0,
+    startedAt: ''
   });
 
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [teacherStatus, setTeacherStatus] = useState<'Approved' | 'Pending' | 'Suspended' | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
 
-  // Sync Firebase Auth state
+  const openAuthModal = (m: 'login' | 'register') => {
+    setAuthModalMode(m);
+    setIsAuthModalOpen(true);
+  };
+  const closeAuthModal = () => setIsAuthModalOpen(false);
+
+  // Load real production data from Firestore on mount
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, user => {
+    let isMounted = true;
+    async function loadProductionData() {
+      try {
+        const [realTests, realQuestions, realTeachers, realStudents, allAttempts, realNotifs, realLogs] = await Promise.all([
+          fetchRealTests(),
+          fetchRealQuestions(),
+          fetchRealTeachers(),
+          fetchRealStudents(),
+          fetchAllTestAttempts(),
+          fetchRealNotifications(),
+          fetchRealAuditLogs()
+        ]);
+
+        if (!isMounted) return;
+
+        if (realTests && realTests.length > 0) setTests(realTests);
+        if (realQuestions && realQuestions.length > 0) setQuestions(realQuestions);
+        if (realTeachers && realTeachers.length > 0) setTeachers(realTeachers);
+        if (realStudents && realStudents.length > 0) setAllStudents(realStudents);
+        if (allAttempts && allAttempts.length > 0) {
+          setCompletedAttempts(allAttempts);
+          const computed = computeRealLeaderboards(allAttempts);
+          setDailyLeaderboardState(computed.daily);
+          setWeeklyLeaderboardState(computed.weekly);
+        }
+        if (realNotifs && realNotifs.length > 0) setNotifications(realNotifs);
+        if (realLogs && realLogs.length > 0) setAuditLogs(realLogs);
+      } catch (err) {
+        console.warn('Failed to load initial Firestore data:', err);
+      }
+    }
+
+    loadProductionData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Sync Firebase Auth state and fetch real candidate attempts
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async user => {
       setFirebaseUser(user);
       if (user) {
         if (user.email === 'sandeepgarg6375494692@gmail.com') {
           setCurrentRole('admin');
+        } else {
+          try {
+            const userSnap = await getDoc(doc(db, 'users', user.uid));
+            if (userSnap.exists()) {
+              const uData = userSnap.data();
+              if (uData.role === 'admin') {
+                setCurrentRole('admin');
+              } else if (uData.role === 'teacher') {
+                setCurrentRole('teacher');
+                const tchDoc = await getDoc(doc(db, 'teacherProfiles', user.uid));
+                if (tchDoc.exists()) {
+                  setTeacherStatus(tchDoc.data().status);
+                }
+              } else {
+                setCurrentRole('student');
+              }
+            }
+          } catch (e) {
+            console.warn('User role fetch error:', e);
+          }
         }
-        setStudentProfile(prev => ({
-          ...prev,
+
+        // Fetch candidate real submissions and bookmarks from Firestore
+        let userAttempts: TestAttempt[] = [];
+        try {
+          userAttempts = await fetchCandidateSubmissions(user.uid);
+          if (userAttempts && userAttempts.length > 0) {
+            setCompletedAttempts(userAttempts);
+          }
+        } catch (e) {
+          console.warn('Submissions fetch error:', e);
+        }
+
+        try {
+          const userBookmarks = await fetchRealBookmarks(user.uid);
+          if (userBookmarks && userBookmarks.length > 0) {
+            setBookmarks(userBookmarks);
+          }
+        } catch (e) {
+          console.warn('Bookmarks fetch error:', e);
+        }
+
+        // Calculate verified candidate statistics strictly from real attempts
+        const totalAttempts = userAttempts ? userAttempts.length : 0;
+        const totalSolved = userAttempts
+          ? userAttempts.reduce((acc, a) => acc + (a.correctCount + a.wrongCount), 0)
+          : 0;
+        const avgAcc =
+          totalAttempts > 0
+            ? Math.round((userAttempts.reduce((acc, a) => acc + a.accuracy, 0) / totalAttempts) * 10) / 10
+            : 0;
+        const pts = userAttempts
+          ? userAttempts.reduce((acc, a) => acc + Math.round(a.obtainedMarks * 10), 0)
+          : 0;
+        const recentActs = userAttempts
+          ? userAttempts.slice(0, 5).map(att => ({
+              testName: att.testTitle,
+              date: new Date(att.submittedAt).toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+              }),
+              score: att.obtainedMarks,
+              maxScore: att.maxMarks,
+              accuracy: att.accuracy
+            }))
+          : [];
+
+        setStudentProfile({
           uid: user.uid,
-          name: user.displayName || prev.name,
-          email: user.email || prev.email,
-          photoURL: user.photoURL || prev.photoURL
-        }));
+          name: user.displayName || 'Candidate Aspirant',
+          email: user.email || '',
+          photoURL:
+            user.photoURL ||
+            `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(user.displayName || user.uid)}`,
+          rankTitle: totalAttempts > 0 ? 'Verified Aspirant' : 'Candidate Aspirant',
+          totalTestsAttempted: totalAttempts,
+          totalQuestionsSolved: totalSolved,
+          averageAccuracy: avgAcc,
+          lifetimePoints: pts,
+          currentDailyPoints: 0,
+          currentWeeklyPoints: 0,
+          currentGlobalRank: 0,
+          streakDays: totalAttempts > 0 ? 1 : 0,
+          recentTestActivity: recentActs
+        });
+      } else {
+        setTeacherStatus(null);
+        setStudentProfile(INITIAL_STUDENT_PROFILE);
       }
     });
     return () => unsubscribe();
@@ -224,6 +378,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       await logOutUser();
       setFirebaseUser(null);
+      setTeacherStatus(null);
       setCurrentRole('student');
       setActiveSection('home');
     } catch (error) {
@@ -231,14 +386,14 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Countdown Timer effect during exam
+  // Authoritative Server-Deadline Timer effect during exam
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null;
-    if (activeExam.status === 'in_progress' && activeExam.remainingSeconds > 0) {
+    if (activeExam.status === 'in_progress' && activeExam.serverDeadlineMs > 0) {
       timer = setInterval(() => {
+        const remaining = Math.max(0, Math.floor((activeExam.serverDeadlineMs - Date.now()) / 1000));
         setActiveExam(prev => {
-          if (prev.remainingSeconds <= 1) {
-            // Auto submit when timer reaches 0
+          if (remaining <= 0) {
             return {
               ...prev,
               remainingSeconds: 0
@@ -246,7 +401,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
           return {
             ...prev,
-            remainingSeconds: prev.remainingSeconds - 1
+            remainingSeconds: remaining
           };
         });
       }, 1000);
@@ -257,7 +412,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [activeExam.status, activeExam.remainingSeconds]);
+  }, [activeExam.status, activeExam.serverDeadlineMs, activeExam.remainingSeconds]);
 
   // One Attempt Policy Check
   const hasAttempted = (testId: string) => {
@@ -268,9 +423,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return completedAttempts.find(a => a.testId === testId);
   };
 
-  const startTestInstructions = (test: Test) => {
-    if (hasAttempted(test.id)) {
-      alert(`Policy Enforced: You have already attempted '${test.title}'. Each student gets only ONE official attempt per test.`);
+  const startTestInstructions = async (test: Test) => {
+    const uid = auth.currentUser ? auth.currentUser.uid : studentProfile.uid;
+
+    // Check One Attempt Policy
+    const pastAttempt = await checkStudentAttempted(test.id, uid);
+    if (pastAttempt || hasAttempted(test.id)) {
+      alert(`One Student = One Attempt Policy Enforced:\nYou have already submitted '${test.title}'. Retaking an official competitive examination is strictly prohibited.`);
       return;
     }
 
@@ -286,17 +445,28 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       answers: {},
       questionStates: initialStates,
       remainingSeconds: test.durationMinutes * 60,
-      lastAttemptResult: null
+      lastAttemptResult: null,
+      serverDeadlineMs: 0,
+      startedAt: ''
     });
     setActiveSection('exam');
   };
 
   const beginExamination = () => {
     if (!activeExam.test) return;
+    const uid = auth.currentUser ? auth.currentUser.uid : studentProfile.uid;
+    const session = initializeExamSession(activeExam.test, uid);
+    const remainingSecs = Math.max(0, Math.floor((session.serverDeadlineMs - Date.now()) / 1000));
+
     setActiveExam(prev => ({
       ...prev,
       status: 'in_progress',
-      remainingSeconds: (prev.test?.durationMinutes || 10) * 60
+      answers: session.answers,
+      questionStates: session.questionStates,
+      currentQuestionIndex: session.currentQuestionIndex,
+      serverDeadlineMs: session.serverDeadlineMs,
+      startedAt: session.startedAt,
+      remainingSeconds: remainingSecs
     }));
   };
 
@@ -311,6 +481,20 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             ? ('answered_and_marked' as QuestionState)
             : ('answered' as QuestionState)
       };
+
+      if (prev.test) {
+        const uid = auth.currentUser ? auth.currentUser.uid : studentProfile.uid;
+        persistExamSession(prev.test.id, uid, {
+          testId: prev.test.id,
+          studentId: uid,
+          startedAt: prev.startedAt,
+          serverDeadlineMs: prev.serverDeadlineMs,
+          currentQuestionIndex: prev.currentQuestionIndex,
+          answers: newAnswers,
+          questionStates: newQuestionStates,
+          lastSavedAt: new Date().toISOString()
+        });
+      }
 
       return {
         ...prev,
@@ -334,6 +518,20 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             : ('not_answered' as QuestionState)
       };
 
+      if (prev.test) {
+        const uid = auth.currentUser ? auth.currentUser.uid : studentProfile.uid;
+        persistExamSession(prev.test.id, uid, {
+          testId: prev.test.id,
+          studentId: uid,
+          startedAt: prev.startedAt,
+          serverDeadlineMs: prev.serverDeadlineMs,
+          currentQuestionIndex: prev.currentQuestionIndex,
+          answers: newAnswers,
+          questionStates: newQuestionStates,
+          lastSavedAt: new Date().toISOString()
+        });
+      }
+
       return {
         ...prev,
         answers: newAnswers,
@@ -349,6 +547,21 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ...prev.questionStates,
         [questionId]: (hasAnswer ? 'answered_and_marked' : 'marked_for_review') as QuestionState
       };
+
+      if (prev.test) {
+        const uid = auth.currentUser ? auth.currentUser.uid : studentProfile.uid;
+        persistExamSession(prev.test.id, uid, {
+          testId: prev.test.id,
+          studentId: uid,
+          startedAt: prev.startedAt,
+          serverDeadlineMs: prev.serverDeadlineMs,
+          currentQuestionIndex: prev.currentQuestionIndex,
+          answers: prev.answers,
+          questionStates: newQuestionStates,
+          lastSavedAt: new Date().toISOString()
+        });
+      }
+
       return {
         ...prev,
         questionStates: newQuestionStates
@@ -364,6 +577,21 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (updatedStates[targetQ.id] === 'not_visited') {
         updatedStates[targetQ.id] = 'not_answered';
       }
+
+      if (prev.test) {
+        const uid = auth.currentUser ? auth.currentUser.uid : studentProfile.uid;
+        persistExamSession(prev.test.id, uid, {
+          testId: prev.test.id,
+          studentId: uid,
+          startedAt: prev.startedAt,
+          serverDeadlineMs: prev.serverDeadlineMs,
+          currentQuestionIndex: index,
+          answers: prev.answers,
+          questionStates: updatedStates,
+          lastSavedAt: new Date().toISOString()
+        });
+      }
+
       return {
         ...prev,
         currentQuestionIndex: index,
@@ -388,92 +616,40 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const submitTest = () => {
+  const submitTest = async () => {
     if (!activeExam.test) return;
     const test = activeExam.test;
-    const answers = activeExam.answers;
+    const uid = auth.currentUser ? auth.currentUser.uid : studentProfile.uid;
 
-    let correctCount = 0;
-    let wrongCount = 0;
-    let unansweredCount = 0;
-    let obtainedMarks = 0;
+    const attemptResult = await calculateAndPersistTestResult(
+      test,
+      studentProfile,
+      activeExam.answers,
+      activeExam.questionStates,
+      activeExam.startedAt,
+      activeExam.serverDeadlineMs
+    );
 
-    test.questions.forEach(q => {
-      const userChoice = answers[q.id];
-
-      // CRITICAL OPTION E RULE:
-      // Option E represents 'Unattempted / No Response'
-      // If user selected E or didn't select any option -> treated as Unanswered (0 marks, 0 penalty)
-      if (!userChoice || userChoice === 'E') {
-        unansweredCount++;
-      } else if (userChoice === q.correctAnswer) {
-        correctCount++;
-        obtainedMarks += test.marksPerCorrect;
-      } else {
-        wrongCount++;
-        if (test.negativeMarkingEnabled) {
-          obtainedMarks -= test.negativeMarks;
-        }
-      }
-    });
-
-    obtainedMarks = Math.max(0, Math.round(obtainedMarks * 100) / 100);
-    const accuracy =
-      correctCount + wrongCount > 0
-        ? Math.round((correctCount / (correctCount + wrongCount)) * 1000) / 10
-        : 0;
-
-    const totalDurationSeconds = test.durationMinutes * 60;
-    const timeTaken = totalDurationSeconds - activeExam.remainingSeconds;
-
-    const attemptResult: TestAttempt = {
-      id: `att_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-      testId: test.id,
-      testTitle: test.title,
-      category: test.category,
-      subject: test.subject,
-      studentId: studentProfile.uid,
-      studentName: studentProfile.name,
-      answers: { ...answers },
-      questionStates: { ...activeExam.questionStates },
-      correctCount,
-      wrongCount,
-      unansweredCount,
-      obtainedMarks,
-      maxMarks: test.maxMarks,
-      accuracy,
-      timeTakenSeconds: timeTaken,
-      startedAt: new Date(Date.now() - timeTaken * 1000).toISOString(),
-      submittedAt: new Date().toISOString(),
-      rank: Math.floor(Math.random() * 5) + 1,
-      totalParticipants: 420
-    };
+    clearExamSession(test.id, uid);
 
     setCompletedAttempts(prev => [attemptResult, ...prev]);
-
-    // Persist to Firestore if authenticated
-    if (auth.currentUser) {
-      setDoc(doc(db, 'testAttempts', attemptResult.id), attemptResult).catch(err => {
-        handleFirestoreError(err, OperationType.WRITE, 'testAttempts');
-      });
-    }
 
     // Update Student Profile Stats
     setStudentProfile(prev => {
       const newTotal = prev.totalTestsAttempted + 1;
-      const newPoints = prev.lifetimePoints + Math.round(obtainedMarks * 10);
+      const newPoints = prev.lifetimePoints + Math.round(attemptResult.obtainedMarks * 10);
       return {
         ...prev,
         totalTestsAttempted: newTotal,
-        totalQuestionsSolved: prev.totalQuestionsSolved + (correctCount + wrongCount),
+        totalQuestionsSolved: prev.totalQuestionsSolved + (attemptResult.correctCount + attemptResult.wrongCount),
         lifetimePoints: newPoints,
         recentTestActivity: [
           {
             testName: test.title,
             date: 'Just now',
-            score: obtainedMarks,
+            score: attemptResult.obtainedMarks,
             maxScore: test.maxMarks,
-            accuracy
+            accuracy: attemptResult.accuracy
           },
           ...prev.recentTestActivity.slice(0, 4)
         ]
@@ -488,6 +664,10 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const cancelExam = () => {
+    if (activeExam.test) {
+      const uid = auth.currentUser ? auth.currentUser.uid : studentProfile.uid;
+      clearExamSession(activeExam.test.id, uid);
+    }
     setActiveExam({
       test: null,
       status: 'idle',
@@ -495,7 +675,9 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       answers: {},
       questionStates: {},
       remainingSeconds: 0,
-      lastAttemptResult: null
+      lastAttemptResult: null,
+      serverDeadlineMs: 0,
+      startedAt: ''
     });
     setActiveSection('home');
   };
@@ -526,6 +708,24 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return bookmarks.some(b => b.questionId === questionId);
   };
 
+  // Helper for dynamic actor identification
+  const getActorName = (roleOverride?: 'Admin' | 'Teacher' | 'Student') => {
+    const role =
+      roleOverride ||
+      (currentRole === 'admin' ? 'Admin' : currentRole === 'teacher' ? 'Teacher' : 'Student');
+    if (firebaseUser?.displayName) {
+      return `${firebaseUser.displayName} (${role})`;
+    }
+    if (firebaseUser?.email) {
+      return `${firebaseUser.email} (${role})`;
+    }
+    return role === 'Admin'
+      ? 'System Administrator'
+      : role === 'Teacher'
+      ? 'Faculty Educator'
+      : 'Candidate Aspirant';
+  };
+
   // Teacher / Admin Actions
   const addQuestion = (q: Omit<Question, 'id'>) => {
     const newQ: Question = {
@@ -533,8 +733,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       id: `q-${Date.now()}`
     };
     setQuestions(prev => [newQ, ...prev]);
+    if (auth.currentUser) {
+      setDoc(doc(db, 'questions', newQ.id), newQ).catch(err => {
+        handleFirestoreError(err, OperationType.WRITE, 'questions');
+      });
+    }
     addAuditLog({
-      actor: currentRole === 'admin' ? 'Hokage Tsunade (Admin)' : 'Educator',
+      actor: getActorName(),
       actorRole: currentRole === 'admin' ? 'Admin' : 'Teacher',
       action: 'Added New Question',
       target: `${q.subject} - ${q.topic}`,
@@ -542,10 +747,103 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
+  const addBulkQuestions = (newQuestions: Omit<Question, 'id'>[]) => {
+    let added = 0;
+    let duplicates = 0;
+    let failed = 0;
+
+    const currentStatements = new Set(questions.map(q => q.statement.trim().toLowerCase()));
+    const validQuestions: Question[] = [];
+
+    newQuestions.forEach(q => {
+      if (
+        !q.statement ||
+        !q.options.A ||
+        !q.options.B ||
+        !q.options.C ||
+        !q.options.D ||
+        !['A', 'B', 'C', 'D'].includes(q.correctAnswer)
+      ) {
+        failed++;
+        return;
+      }
+
+      if (currentStatements.has(q.statement.trim().toLowerCase())) {
+        duplicates++;
+        return;
+      }
+
+      currentStatements.add(q.statement.trim().toLowerCase());
+      const item: Question = {
+        ...q,
+        id: `q-bulk-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+      };
+      validQuestions.push(item);
+      added++;
+
+      // Persist to Firestore if authenticated
+      if (auth.currentUser) {
+        setDoc(doc(db, 'questions', item.id), item).catch(err => {
+          handleFirestoreError(err, OperationType.WRITE, 'questions');
+        });
+      }
+    });
+
+    if (validQuestions.length > 0) {
+      setQuestions(prev => [...validQuestions, ...prev]);
+      addAuditLog({
+        actor: getActorName(),
+        actorRole: currentRole === 'admin' ? 'Admin' : 'Teacher',
+        action: `Bulk Imported ${validQuestions.length} Questions`,
+        target: `${validQuestions.length} questions into Question Bank`,
+        status: 'Success'
+      });
+    }
+
+    return { added, duplicates, failed };
+  };
+
+  const addQuestionsToTest = (testId: string, newQs: Question[]) => {
+    setTests(prev =>
+      prev.map(t => {
+        if (t.id !== testId) return t;
+        const combined = [...t.questions, ...newQs];
+        const updated = {
+          ...t,
+          questions: combined,
+          totalQuestions: combined.length,
+          maxMarks: combined.length * t.marksPerCorrect
+        };
+        if (auth.currentUser) {
+          updateDoc(doc(db, 'tests', testId), {
+            questions: combined,
+            totalQuestions: combined.length,
+            maxMarks: combined.length * t.marksPerCorrect
+          }).catch(err => {
+            handleFirestoreError(err, OperationType.UPDATE, 'tests');
+          });
+        }
+        return updated;
+      })
+    );
+    addAuditLog({
+      actor: getActorName(),
+      actorRole: currentRole === 'admin' ? 'Admin' : 'Teacher',
+      action: `Appended ${newQs.length} Questions to Test`,
+      target: `Test ID: ${testId}`,
+      status: 'Success'
+    });
+  };
+
   const updateQuestion = (id: string, updated: Partial<Question>) => {
     setQuestions(prev => prev.map(q => (q.id === id ? { ...q, ...updated } : q)));
+    if (auth.currentUser) {
+      updateDoc(doc(db, 'questions', id), updated).catch(err => {
+        handleFirestoreError(err, OperationType.UPDATE, 'questions');
+      });
+    }
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: 'Updated Question Content',
       target: `Question ID: ${id}`,
@@ -556,7 +854,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const deleteQuestion = (id: string) => {
     setQuestions(prev => prev.filter(q => q.id !== id));
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: 'Deleted Question from Bank',
       target: `Question ID: ${id}`,
@@ -565,15 +863,23 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const createTest = (testData: Omit<Test, 'id' | 'createdAt' | 'status'>) => {
+    const creatorName = firebaseUser?.displayName || (currentRole === 'admin' ? 'Administrator' : 'Educator');
     const newTest: Test = {
       ...testData,
       id: `test-${Date.now()}`,
       createdAt: new Date().toISOString(),
-      status: currentRole === 'admin' ? 'Published' : 'Pending Approval'
+      status: currentRole === 'admin' ? 'Published' : 'Pending Approval',
+      createdBy: creatorName,
+      teacherName: creatorName
     };
     setTests(prev => [newTest, ...prev]);
+    if (auth.currentUser) {
+      setDoc(doc(db, 'tests', newTest.id), newTest).catch(err => {
+        handleFirestoreError(err, OperationType.WRITE, 'tests');
+      });
+    }
     addAuditLog({
-      actor: currentRole === 'admin' ? 'Hokage Tsunade (Admin)' : 'Educator',
+      actor: getActorName(),
       actorRole: currentRole === 'admin' ? 'Admin' : 'Teacher',
       action: currentRole === 'admin' ? 'Created & Published Test' : 'Created Test Draft',
       target: testData.title,
@@ -586,8 +892,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTests(prev =>
       prev.map(t => (t.id === testId ? { ...t, status: 'Published' } : t))
     );
+    if (auth.currentUser) {
+      updateDoc(doc(db, 'tests', testId), { status: 'Published' }).catch(err => {
+        handleFirestoreError(err, OperationType.UPDATE, 'tests');
+      });
+    }
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: 'Approved & Published Test',
       target: targetTest ? targetTest.title : testId,
@@ -600,8 +911,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTests(prev =>
       prev.map(t => (t.id === testId ? { ...t, status: 'Rejected' } : t))
     );
+    if (auth.currentUser) {
+      updateDoc(doc(db, 'tests', testId), { status: 'Rejected' }).catch(err => {
+        handleFirestoreError(err, OperationType.UPDATE, 'tests');
+      });
+    }
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: `Rejected Test: ${reason || 'Failed moderation guidelines'}`,
       target: targetTest ? targetTest.title : testId,
@@ -614,8 +930,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTests(prev =>
       prev.map(t => (t.id === testId ? { ...t, status: 'Published' } : t))
     );
+    if (auth.currentUser) {
+      updateDoc(doc(db, 'tests', testId), { status: 'Published' }).catch(err => {
+        handleFirestoreError(err, OperationType.UPDATE, 'tests');
+      });
+    }
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: 'Published Test for Candidates',
       target: targetTest ? targetTest.title : testId,
@@ -628,8 +949,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTests(prev =>
       prev.map(t => (t.id === testId ? { ...t, status: 'Unpublished' } : t))
     );
+    if (auth.currentUser) {
+      updateDoc(doc(db, 'tests', testId), { status: 'Unpublished' }).catch(err => {
+        handleFirestoreError(err, OperationType.UPDATE, 'tests');
+      });
+    }
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: 'Unpublished Test (Hidden from Student Catalog)',
       target: targetTest ? targetTest.title : testId,
@@ -642,8 +968,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTests(prev =>
       prev.map(t => (t.id === testId ? { ...t, status: 'Scheduled', startDate, endDate } : t))
     );
+    if (auth.currentUser) {
+      updateDoc(doc(db, 'tests', testId), { status: 'Scheduled', startDate, endDate }).catch(err => {
+        handleFirestoreError(err, OperationType.UPDATE, 'tests');
+      });
+    }
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: `Scheduled Test (${startDate} to ${endDate})`,
       target: targetTest ? targetTest.title : testId,
@@ -656,8 +987,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTests(prev =>
       prev.map(t => (t.id === testId ? { ...t, status: 'Archived' } : t))
     );
+    if (auth.currentUser) {
+      updateDoc(doc(db, 'tests', testId), { status: 'Archived' }).catch(err => {
+        handleFirestoreError(err, OperationType.UPDATE, 'tests');
+      });
+    }
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: 'Archived Test Record',
       target: targetTest ? targetTest.title : testId,
@@ -669,7 +1005,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const targetTest = tests.find(t => t.id === testId);
     setTests(prev => prev.filter(t => t.id !== testId));
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: 'Deleted Test Document',
       target: targetTest ? targetTest.title : testId,
@@ -683,7 +1019,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       prev.map(s => (s.id === studentId ? { ...s, status } : s))
     );
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: `Changed Student Status to ${status}`,
       target: `Student ID: ${studentId}`,
@@ -695,8 +1031,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTeachers(prev =>
       prev.map(tch => (tch.id === teacherId ? { ...tch, status: 'Approved' } : tch))
     );
+    if (auth.currentUser) {
+      setDoc(doc(db, 'teacherProfiles', teacherId), { status: 'Approved' }, { merge: true }).catch(err => {
+        handleFirestoreError(err, OperationType.UPDATE, 'teacherProfiles');
+      });
+    }
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: 'Approved Educator Application',
       target: `Teacher ID: ${teacherId}`,
@@ -706,8 +1047,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const rejectTeacher = (teacherId: string) => {
     setTeachers(prev => prev.filter(tch => tch.id !== teacherId));
+    if (auth.currentUser) {
+      setDoc(doc(db, 'teacherProfiles', teacherId), { status: 'Suspended' }, { merge: true }).catch(err => {
+        handleFirestoreError(err, OperationType.UPDATE, 'teacherProfiles');
+      });
+    }
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: 'Rejected & Removed Educator Application',
       target: `Teacher ID: ${teacherId}`,
@@ -719,8 +1065,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTeachers(prev =>
       prev.map(tch => (tch.id === teacherId ? { ...tch, status: 'Suspended' } : tch))
     );
+    if (auth.currentUser) {
+      setDoc(doc(db, 'teacherProfiles', teacherId), { status: 'Suspended' }, { merge: true }).catch(err => {
+        handleFirestoreError(err, OperationType.UPDATE, 'teacherProfiles');
+      });
+    }
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: 'Suspended Educator Privileges',
       target: `Teacher ID: ${teacherId}`,
@@ -735,8 +1086,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createdAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     };
     setNotifications(prev => [newNotif, ...prev]);
+    if (auth.currentUser) {
+      setDoc(doc(db, 'notifications', newNotif.id), newNotif).catch(err => {
+        handleFirestoreError(err, OperationType.WRITE, 'notifications');
+      });
+    }
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: `Broadcasted Announcement (${notif.targetAudience})`,
       target: notif.title,
@@ -761,7 +1117,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
     setPYQs(prev => [newPyq, ...prev]);
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: 'Published Past Year Question Set',
       target: `${pyq.examName} (${pyq.year})`,
@@ -772,7 +1128,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updatePlatformSettings = (settings: Partial<PlatformSettings>) => {
     setPlatformSettings(prev => ({ ...prev, ...settings }));
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: 'Updated Global Examination Policies',
       target: 'Platform Settings System Configuration',
@@ -788,12 +1144,17 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       ipAddress: '192.168.1.101'
     };
     setAuditLogs(prev => [newLog, ...prev.slice(0, 49)]);
+    if (auth.currentUser) {
+      setDoc(doc(db, 'auditLogs', newLog.id), newLog).catch(err => {
+        handleFirestoreError(err, OperationType.WRITE, 'auditLogs');
+      });
+    }
   };
 
   const addSubject = (subject: SubjectItem) => {
     setSubjects(prev => [...prev, subject]);
     addAuditLog({
-      actor: 'Hokage Tsunade (Admin)',
+      actor: getActorName('Admin'),
       actorRole: 'Admin',
       action: 'Created New Academic Subject',
       target: subject.name,
@@ -811,7 +1172,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         prev.map(item => ({ ...item, points: 0, testsAttempted: 0, change: 'same' as const }))
       );
       addAuditLog({
-        actor: 'Hokage Tsunade (Admin)',
+        actor: getActorName('Admin'),
         actorRole: 'Admin',
         action: 'Reset Daily Leaderboard Cycle',
         target: 'Daily Points Reset to Zero',
@@ -822,7 +1183,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         prev.map(item => ({ ...item, points: 0, testsAttempted: 0, change: 'same' as const }))
       );
       addAuditLog({
-        actor: 'Hokage Tsunade (Admin)',
+        actor: getActorName('Admin'),
         actorRole: 'Admin',
         action: 'Reset Weekly Leaderboard Cycle',
         target: 'Weekly Points Reset to Zero',
@@ -845,6 +1206,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         tests,
         questions,
         studentProfile,
+        setStudentProfile,
         completedAttempts,
         bookmarks,
         dailyLeaderboard: dailyLeaderboardState,
@@ -874,6 +1236,8 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         toggleBookmark,
         isBookmarked,
         addQuestion,
+        addBulkQuestions,
+        addQuestionsToTest,
         updateQuestion,
         deleteQuestion,
         createTest,
@@ -898,6 +1262,12 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updateSubject,
         resetLeaderboard,
         firebaseUser,
+        teacherStatus,
+        isAuthModalOpen,
+        setIsAuthModalOpen,
+        authModalMode,
+        openAuthModal,
+        closeAuthModal,
         loginWithGoogle,
         logout
       }}

@@ -1,5 +1,13 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile
+} from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -91,3 +99,29 @@ export async function logOutUser() {
     throw error;
   }
 }
+
+// Email & Password Registration
+export async function registerWithEmailPassword(email: string, pass: string, displayName: string) {
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+    if (displayName) {
+      await updateProfile(userCredential.user, { displayName });
+    }
+    return userCredential.user;
+  } catch (error) {
+    console.error('Registration failed:', error);
+    throw error;
+  }
+}
+
+// Email & Password Sign In
+export async function loginWithEmailPassword(email: string, pass: string) {
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+    return userCredential.user;
+  } catch (error) {
+    console.error('Sign-in failed:', error);
+    throw error;
+  }
+}
+

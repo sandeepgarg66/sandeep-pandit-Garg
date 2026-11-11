@@ -12,7 +12,7 @@ import {
 import { useQuiz } from '../../context/QuizContext';
 
 export const AdminSettingsView: React.FC = () => {
-  const { platformSettings, updatePlatformSettings } = useQuiz();
+  const { platformSettings, updatePlatformSettings, firebaseUser } = useQuiz();
 
   const [oneAttempt, setOneAttempt] = useState(platformSettings.enforceOneAttempt);
   const [optionE, setOptionE] = useState(platformSettings.enforceOptionE);
@@ -159,7 +159,7 @@ export const AdminSettingsView: React.FC = () => {
           <div className="flex items-center gap-2 border-b border-white/10 pb-3">
             <Lock className="w-5 h-5 text-purple-400" />
             <h3 className="font-heading font-bold text-base text-white">
-              Hokage Administration Security
+              Institutional Administration Security
             </h3>
           </div>
 
@@ -171,7 +171,7 @@ export const AdminSettingsView: React.FC = () => {
               <input
                 type="text"
                 disabled
-                value="Hokage Tsunade (Root Authority)"
+                value={firebaseUser?.displayName ? `${firebaseUser.displayName} (Root Authority)` : "Institutional Administrator (Root Authority)"}
                 className="w-full px-3.5 py-2.5 bg-slate-950 border border-white/5 rounded-xl text-slate-400 font-medium"
               />
             </div>
@@ -183,7 +183,7 @@ export const AdminSettingsView: React.FC = () => {
               <input
                 type="email"
                 disabled
-                value="tsunade.admin@leafvillage.edu"
+                value={firebaseUser?.email || "admin@sanskarquiz.edu"}
                 className="w-full px-3.5 py-2.5 bg-slate-950 border border-white/5 rounded-xl text-slate-400 font-medium"
               />
             </div>

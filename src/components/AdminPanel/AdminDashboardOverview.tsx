@@ -31,7 +31,8 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({ 
     auditLogs,
     completedAttempts,
     approveTest,
-    rejectTest
+    rejectTest,
+    firebaseUser
   } = useQuiz();
 
   const pendingTests = tests.filter(t => t.status === 'Pending Approval');
@@ -49,10 +50,10 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({ 
               <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF8C32] bg-[#FF8C32]/10 px-2.5 py-0.5 rounded-full border border-[#FF8C32]/30">
                 Institutional Administration
               </span>
-              <span className="text-xs text-slate-400 font-mono">Sanskar-X-NarutoQuiz v2.4</span>
+              <span className="text-xs text-slate-400 font-mono">Sanskar-X-NarutoQuiz</span>
             </div>
             <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-white">
-              Welcome, Hokage Administrator
+              Welcome, {firebaseUser?.displayName ? `${firebaseUser.displayName}` : 'Institutional Administrator'}
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
               Complete institutional oversight, teacher verification, question curation, 5-option OMR enforcement, and real-time candidate examination tracking.
@@ -140,7 +141,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({ 
             <Award className="w-4 h-4 text-[#FF8C32]" />
           </div>
           <div className="text-2xl font-mono font-extrabold text-[#FF8C32]">
-            {completedAttempts.length + 342}
+            {completedAttempts.length}
           </div>
           <div className="text-[10px] text-emerald-400">One attempt enforced</div>
         </div>

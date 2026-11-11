@@ -5,17 +5,27 @@ import { useQuiz } from '../../context/QuizContext';
 export const StudentPerformance: React.FC = () => {
   const { studentProfile, completedAttempts } = useQuiz();
 
-  const totalCorrect = completedAttempts.reduce((acc, a) => acc + a.correctCount, 26);
-  const totalWrong = completedAttempts.reduce((acc, a) => acc + a.wrongCount, 6);
-  const totalUnattempted = completedAttempts.reduce((acc, a) => acc + a.unansweredCount, 4);
+  const totalCorrect = completedAttempts.reduce((acc, a) => acc + a.correctCount, 0);
+  const totalWrong = completedAttempts.reduce((acc, a) => acc + a.wrongCount, 0);
+  const totalUnattempted = completedAttempts.reduce((acc, a) => acc + a.unansweredCount, 0);
 
-  const subjectBreakdown = [
-    { subject: 'Indian Polity & Governance', accuracy: 92, total: 45, correct: 41 },
-    { subject: 'General Science & Tech', accuracy: 88, total: 38, correct: 33 },
-    { subject: 'Ancient Indian History', accuracy: 80, total: 30, correct: 24 },
-    { subject: 'Quantitative Aptitude', accuracy: 78, total: 50, correct: 39 },
-    { subject: 'Ecology & Environment', accuracy: 84, total: 25, correct: 21 },
-  ];
+  // Dynamically compute subject breakdown from genuine completed attempts
+  const subjectMap: Record<string, { subject: string; correct: number; total: number }> = {};
+  completedAttempts.forEach(att => {
+    const s = att.subject || 'General Assessment';
+    if (!subjectMap[s]) {
+      subjectMap[s] = { subject: s, correct: 0, total: 0 };
+    }
+    subjectMap[s].correct += att.correctCount;
+    subjectMap[s].total += att.correctCount + att.wrongCount + att.unansweredCount;
+  });
+
+  const subjectBreakdown = Object.values(subjectMap).map(item => ({
+    subject: item.subject,
+    accuracy: item.total > 0 ? Math.round((item.correct / item.total) * 100) : 0,
+    total: item.total,
+    correct: item.correct
+  }));
 
   return (
     <div className="space-y-8 max-w-6xl">
@@ -86,29 +96,38 @@ export const StudentPerformance: React.FC = () => {
             <h3 className="font-heading font-bold text-lg text-white">
               Subject-wise Mastery Breakdown
             </h3>
-            <p className="text-xs text-slate-400">Accuracy rate across competitive test subjects</p>
+            <p className="text-xs text-slate-400">Accuracy rate across verified competitive test subjects</p>
           </div>
-          <span className="text-xs text-[#FF8C32] font-mono font-bold">5 Core Domains</span>
+          <span className="text-xs text-[#FF8C32] font-mono font-bold">
+            {subjectBreakdown.length} Tracked Subject{subjectBreakdown.length === 1 ? '' : 's'}
+          </span>
         </div>
 
-        <div className="space-y-4">
-          {subjectBreakdown.map((sb, idx) => (
-            <div key={idx} className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-white">{sb.subject}</span>
-                <span className="font-mono text-slate-300">
-                  <strong className="text-emerald-400">{sb.accuracy}%</strong> ({sb.correct}/{sb.total} Correct)
-                </span>
+        {subjectBreakdown.length === 0 ? (
+          <div className="py-8 text-center text-xs text-slate-400 space-y-2">
+            <p>No subject performance data recorded yet.</p>
+            <p className="text-slate-500">Attempt published tests across different subjects to generate your mastery metrics.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {subjectBreakdown.map((sb, idx) => (
+              <div key={idx} className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-white">{sb.subject}</span>
+                  <span className="font-mono text-slate-300">
+                    <strong className="text-emerald-400">{sb.accuracy}%</strong> ({sb.correct}/{sb.total} Correct)
+                  </span>
+                </div>
+                <div className="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-orange-500 to-[#FF8C32] rounded-full"
+                    style={{ width: `${sb.accuracy}%` }}
+                  />
+                </div>
               </div>
-              <div className="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-orange-500 to-[#FF8C32] rounded-full"
-                  style={{ width: `${sb.accuracy}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Test Attempt History Table */}

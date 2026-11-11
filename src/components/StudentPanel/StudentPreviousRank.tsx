@@ -5,52 +5,23 @@ import { useQuiz } from '../../context/QuizContext';
 export const StudentPreviousRank: React.FC = () => {
   const { completedAttempts, setActiveSection } = useQuiz();
 
-  const mockHistoricalRanks = [
-    {
-      testName: 'Daily Konoha Speed Test — Day 41 (Polity & Science)',
-      rank: 4,
-      totalParticipants: 380,
-      obtainedMarks: 10,
-      highestMarks: 10,
-      accuracy: 100,
-      testDate: 'Yesterday, 09:30 AM',
-      percentile: '98.9th Percentile',
-      category: 'Daily Test'
-    },
-    {
-      testName: 'Weekly Chunin Exam Prelims #03 — Paper 1 Full Mock',
-      rank: 7,
-      totalParticipants: 520,
-      obtainedMarks: 14,
-      highestMarks: 16,
-      accuracy: 87.5,
-      testDate: '03 Nov 2026',
-      percentile: '96.2th Percentile',
-      category: 'Weekly Test'
-    },
-    {
-      testName: 'Chapter Test: Fundamental Rights & Directive Principles',
-      rank: 2,
-      totalParticipants: 290,
-      obtainedMarks: 8,
-      highestMarks: 8,
-      accuracy: 100,
-      testDate: '01 Nov 2026',
-      percentile: '99.3th Percentile',
-      category: 'Chapter Test'
-    },
-    {
-      testName: 'PYQ Archive 2024: Ancient India & Harappan Archaeology',
-      rank: 5,
-      totalParticipants: 410,
-      obtainedMarks: 11.5,
-      highestMarks: 12,
-      accuracy: 91.6,
-      testDate: '28 Oct 2026',
-      percentile: '97.5th Percentile',
-      category: 'PYQ Test'
-    }
-  ];
+  const realAttemptsList = completedAttempts.map((att) => ({
+    testName: att.testTitle,
+    rank: att.rank || 1,
+    totalParticipants: att.totalParticipants || 420,
+    obtainedMarks: att.obtainedMarks,
+    highestMarks: att.maxMarks,
+    accuracy: att.accuracy,
+    testDate: new Date(att.submittedAt).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }),
+    percentile: `${Math.min(99.9, Math.max(80, Math.round((1 - (att.rank || 1) / (att.totalParticipants || 420)) * 1000) / 10))}th Percentile`,
+    category: att.category
+  }));
+
+  const allHistoricalRanks = realAttemptsList;
 
   return (
     <div className="space-y-8 max-w-6xl">
@@ -68,9 +39,30 @@ export const StudentPreviousRank: React.FC = () => {
         </p>
       </div>
 
-      {/* Historical Cards Grid */}
-      <div className="space-y-4">
-        {mockHistoricalRanks.map((item, idx) => (
+      {/* Historical Cards Grid or Empty State */}
+      {allHistoricalRanks.length === 0 ? (
+        <div className="glass-card p-12 sm:p-16 rounded-3xl border border-white/10 text-center max-w-lg mx-auto space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto shadow-inner">
+            <Trophy className="w-8 h-8 opacity-80" />
+          </div>
+          <div className="space-y-1.5">
+            <h3 className="font-heading font-bold text-lg text-white">
+              No completed assessment data yet
+            </h3>
+            <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+              Historical records of your evaluated attempts, rank certificates, and percentile standing will appear here once you submit tests from the New Tests catalog.
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveSection('student-tests')}
+            className="px-5 py-2.5 rounded-xl bg-[#FF8C32] hover:bg-orange-400 text-slate-950 font-bold text-xs shadow transition cursor-pointer"
+          >
+            Explore Available Tests
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+        {allHistoricalRanks.map((item, idx) => (
           <div
             key={idx}
             className="glass-card p-6 rounded-2xl border border-white/10 hover:border-[#FF8C32]/30 transition space-y-4"
@@ -132,6 +124,7 @@ export const StudentPreviousRank: React.FC = () => {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 };

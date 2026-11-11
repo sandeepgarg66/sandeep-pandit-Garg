@@ -11,14 +11,16 @@ import {
   ArrowRight,
   Shield,
   Layers,
-  HelpCircle
+  HelpCircle,
+  Sparkles
 } from 'lucide-react';
 import { useQuiz } from '../../context/QuizContext';
 import { Test, Question, TestCategory, QuestionOptionKey } from '../../types/quiz';
+import { AIBulkQuestionManager } from './AIBulkQuestionManager';
 
 export const TeacherDashboard: React.FC = () => {
-  const { tests, createTest, questions, addQuestion, setActiveSection } = useQuiz();
-  const [activeTab, setActiveTab] = useState<'tests' | 'create-test' | 'question-bank'>('tests');
+  const { tests, createTest, questions, addQuestion, setActiveSection, firebaseUser } = useQuiz();
+  const [activeTab, setActiveTab] = useState<'tests' | 'create-test' | 'question-bank' | 'ai-bulk-import'>('tests');
 
   // Test creation form state
   const [testTitle, setTestTitle] = useState('');
@@ -56,8 +58,8 @@ export const TeacherDashboard: React.FC = () => {
       marksPerCorrect: 2,
       negativeMarkingEnabled: negativeMarking,
       negativeMarks: 0.5,
-      createdBy: 'Kakashi-Sensei',
-      teacherName: 'Kakashi Hatake',
+      createdBy: firebaseUser?.uid || 'Faculty Educator',
+      teacherName: firebaseUser?.displayName || 'Faculty Educator',
       questions: questions.slice(0, 5)
     });
     setTestCreatedNotice(true);
@@ -96,7 +98,7 @@ export const TeacherDashboard: React.FC = () => {
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#EA580C] to-[#FF8C32] p-0.5 shadow-lg">
             <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center text-2xl font-bold text-[#FF8C32]">
-              忍
+              {(firebaseUser?.displayName ? firebaseUser.displayName.charAt(0).toUpperCase() : '忍')}
             </div>
           </div>
           <div>
@@ -104,21 +106,28 @@ export const TeacherDashboard: React.FC = () => {
               <span className="text-xs uppercase font-bold text-[#FF8C32] bg-[#FF8C32]/10 px-2.5 py-0.5 rounded">
                 Verified Educator
               </span>
-              <span className="text-xs text-slate-400 font-mono">Special Jonin Faculty</span>
+              <span className="text-xs text-slate-400 font-mono">Academic Faculty</span>
             </div>
             <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-white mt-1">
-              Kakashi Hatake (Sensei)
+              {firebaseUser?.displayName || 'Faculty Educator'}
             </h2>
             <p className="text-xs text-slate-400">
-              Department of Competitive Examination & Shastra Pedagogy
+              {firebaseUser?.email || 'Department of Competitive Examination & Shastra Pedagogy'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setActiveTab('ai-bulk-import')}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-[#FF8C32] hover:opacity-95 text-white font-bold text-xs shadow transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>AI Question Generator</span>
+          </button>
+          <button
             onClick={() => setActiveTab('create-test')}
-            className="px-5 py-2.5 rounded-xl bg-[#FF8C32] hover:bg-orange-400 text-slate-950 font-bold text-xs shadow transition flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2.5 rounded-xl bg-[#FF8C32] hover:bg-orange-400 text-slate-950 font-bold text-xs shadow transition flex items-center gap-1.5 cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
             <span>Create New Test</span>
@@ -158,18 +167,27 @@ export const TeacherDashboard: React.FC = () => {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-white/10 gap-2 text-xs font-semibold">
+      <div className="flex border-b border-white/10 gap-2 text-xs font-semibold overflow-x-auto scrollbar-none">
         <button
           onClick={() => setActiveTab('tests')}
-          className={`px-4 py-2.5 border-b-2 transition ${
+          className={`px-4 py-2.5 border-b-2 whitespace-nowrap transition cursor-pointer ${
             activeTab === 'tests' ? 'border-[#FF8C32] text-[#FF8C32]' : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           My Tests Catalog
         </button>
         <button
+          onClick={() => setActiveTab('ai-bulk-import')}
+          className={`px-4 py-2.5 border-b-2 whitespace-nowrap transition flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'ai-bulk-import' ? 'border-[#FF8C32] text-[#FF8C32]' : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5 text-[#FF8C32]" />
+          <span>AI Question Generator & Bulk Import</span>
+        </button>
+        <button
           onClick={() => setActiveTab('create-test')}
-          className={`px-4 py-2.5 border-b-2 transition ${
+          className={`px-4 py-2.5 border-b-2 whitespace-nowrap transition cursor-pointer ${
             activeTab === 'create-test' ? 'border-[#FF8C32] text-[#FF8C32]' : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
@@ -177,11 +195,11 @@ export const TeacherDashboard: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('question-bank')}
-          className={`px-4 py-2.5 border-b-2 transition ${
+          className={`px-4 py-2.5 border-b-2 whitespace-nowrap transition cursor-pointer ${
             activeTab === 'question-bank' ? 'border-[#FF8C32] text-[#FF8C32]' : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
-          MCQ Question Builder (A–D Options)
+          MCQ Builder (Manual)
         </button>
       </div>
 
@@ -202,38 +220,50 @@ export const TeacherDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5 font-medium">
-                  {tests.map((t) => (
-                    <tr key={t.id} className="hover:bg-white/5 transition">
-                      <td className="px-5 py-3.5 font-bold text-white">
-                        {t.title}
-                      </td>
-                      <td className="px-5 py-3.5 text-[#FF8C32]">
-                        {t.category}
-                      </td>
-                      <td className="px-5 py-3.5 text-slate-400">
-                        {t.subject}
-                      </td>
-                      <td className="px-5 py-3.5 text-center font-mono">
-                        {t.questions.length} Qs ({t.maxMarks} Marks)
-                      </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                          t.status === 'Published'
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                            : t.status === 'Pending Approval'
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                            : 'bg-slate-800 text-slate-300 border border-white/10'
-                        }`}>
-                          {t.status}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 text-right">
-                        <span className="text-[11px] text-slate-400">
-                          {t.status === 'Published' ? 'Approved by Admin' : 'Submitted for review'}
-                        </span>
+                  {tests.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-5 py-12 text-center text-slate-400">
+                        <BookOpen className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                        <p className="text-sm font-semibold text-slate-300">No tests created yet.</p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Use the Create Assessment Form or AI Question Generator to create your first test.
+                        </p>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    tests.map((t) => (
+                      <tr key={t.id} className="hover:bg-white/5 transition">
+                        <td className="px-5 py-3.5 font-bold text-white">
+                          {t.title}
+                        </td>
+                        <td className="px-5 py-3.5 text-[#FF8C32]">
+                          {t.category}
+                        </td>
+                        <td className="px-5 py-3.5 text-slate-400">
+                          {t.subject}
+                        </td>
+                        <td className="px-5 py-3.5 text-center font-mono">
+                          {t.questions.length} Qs ({t.maxMarks} Marks)
+                        </td>
+                        <td className="px-5 py-3.5 text-center">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            t.status === 'Published'
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                              : t.status === 'Pending Approval'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              : 'bg-slate-800 text-slate-300 border border-white/10'
+                          }`}>
+                            {t.status}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          <span className="text-[11px] text-slate-400">
+                            {t.status === 'Published' ? 'Approved by Admin' : 'Submitted for review'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -507,6 +537,9 @@ export const TeacherDashboard: React.FC = () => {
           </div>
         </form>
       )}
+
+      {/* Tab 4: AI Question Generator & Bulk Import */}
+      {activeTab === 'ai-bulk-import' && <AIBulkQuestionManager />}
     </div>
   );
 };

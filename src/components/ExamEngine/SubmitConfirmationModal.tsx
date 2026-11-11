@@ -57,20 +57,25 @@ export const SubmitConfirmationModal: React.FC<SubmitConfirmationModalProps> = (
         </div>
 
         {/* Question Status Tally Grid */}
-        <div className="grid grid-cols-3 gap-3 text-center">
-          <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-1">
+        <div className="grid grid-cols-4 gap-2.5 text-center">
+          <div className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">Total</span>
+            <span className="font-mono text-xl sm:text-2xl font-extrabold text-white">{total}</span>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-1">
             <span className="text-[10px] uppercase font-bold text-emerald-400 block">Answered</span>
-            <span className="font-mono text-2xl font-extrabold text-white">{answeredCount}</span>
+            <span className="font-mono text-xl sm:text-2xl font-extrabold text-white">{answeredCount}</span>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-1">
+          <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-1">
             <span className="text-[10px] uppercase font-bold text-rose-400 block">Unanswered</span>
-            <span className="font-mono text-2xl font-extrabold text-white">{unattemptedCount}</span>
+            <span className="font-mono text-xl sm:text-2xl font-extrabold text-white">{unattemptedCount}</span>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 space-y-1">
-            <span className="text-[10px] uppercase font-bold text-purple-400 block">Marked Review</span>
-            <span className="font-mono text-2xl font-extrabold text-white">{markedCount}</span>
+          <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/20 space-y-1">
+            <span className="text-[10px] uppercase font-bold text-purple-400 block">Review</span>
+            <span className="font-mono text-xl sm:text-2xl font-extrabold text-white">{markedCount}</span>
           </div>
         </div>
 
@@ -89,7 +94,7 @@ export const SubmitConfirmationModal: React.FC<SubmitConfirmationModalProps> = (
             onClick={onClose}
             className="px-5 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 text-slate-300 font-semibold text-xs transition cursor-pointer"
           >
-            Continue Test
+            Go Back to Test
           </button>
 
           <button

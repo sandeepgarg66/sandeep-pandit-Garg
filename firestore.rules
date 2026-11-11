@@ -132,8 +132,11 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming());
-      allow update: if isValidId(userId) && (isOwner(userId) || isAdmin()) && isValidUser(incoming()) && incoming().id == existing().id;
+      allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming()) &&
+                   (incoming().role != 'admin' || request.auth.token.email == "sandeepgarg6375494692@gmail.com");
+      allow update: if isValidId(userId) && (isOwner(userId) || isAdmin()) && isValidUser(incoming()) &&
+                   incoming().id == existing().id &&
+                   (incoming().role == existing().role || isAdmin());
       allow delete: if isValidId(userId) && isAdmin();
     }
 
@@ -150,8 +153,11 @@ service cloud.firestore {
     match /teacherProfiles/{teacherId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
-      allow create: if isValidId(teacherId) && isOwner(teacherId) && isValidTeacherProfile(incoming());
-      allow update: if isValidId(teacherId) && (isOwner(teacherId) || isAdmin()) && isValidTeacherProfile(incoming());
+      allow create: if isValidId(teacherId) && isOwner(teacherId) && isValidTeacherProfile(incoming()) &&
+                   (incoming().status == 'Pending' || isAdmin());
+      allow update: if isValidId(teacherId) &&
+                   ((isOwner(teacherId) && incoming().status == existing().status) || isAdmin()) &&
+                   isValidTeacherProfile(incoming());
       allow delete: if isValidId(teacherId) && isAdmin();
     }
 

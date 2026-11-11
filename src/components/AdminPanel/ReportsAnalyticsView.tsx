@@ -14,6 +14,23 @@ import { useQuiz } from '../../context/QuizContext';
 export const ReportsAnalyticsView: React.FC = () => {
   const { tests, questions, subjects, allStudents, completedAttempts } = useQuiz();
 
+  const totalAttempts = completedAttempts.length;
+  const meanAccuracy = totalAttempts > 0
+    ? (completedAttempts.reduce((acc, a) => acc + (a.accuracy || 0), 0) / totalAttempts).toFixed(1)
+    : '0.0';
+
+  const totalQuestionsEncountered = completedAttempts.reduce((acc, a) => acc + (a.correctCount + a.wrongCount + (a.unansweredCount || 0)), 0);
+  const totalOptionEUsed = completedAttempts.reduce((acc, a) => acc + (a.unansweredCount || 0), 0);
+  const optionEAdoption = totalQuestionsEncountered > 0
+    ? ((totalOptionEUsed / totalQuestionsEncountered) * 100).toFixed(1)
+    : '0.0';
+
+  const completionRatio = totalAttempts > 0 ? '100%' : '0%';
+
+  const avgTimeTakenSeconds = totalAttempts > 0
+    ? Math.round(completedAttempts.reduce((acc, a) => acc + (a.timeTakenSeconds || 0), 0) / totalAttempts)
+    : 0;
+
   const subjectStats = subjects.map(s => {
     const sTests = tests.filter(t => t.subject === s.name);
     const sQuestions = questions.filter(q => q.subject === s.name);
@@ -21,7 +38,7 @@ export const ReportsAnalyticsView: React.FC = () => {
       name: s.name,
       testsCount: sTests.length,
       questionsCount: sQuestions.length,
-      percentage: Math.min(100, Math.max(15, sQuestions.length * 12))
+      percentage: questions.length > 0 ? Math.round((sQuestions.length / questions.length) * 100) : 0
     };
   });
 
@@ -41,26 +58,26 @@ export const ReportsAnalyticsView: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="glass-card p-5 rounded-2xl border border-white/5 space-y-1">
           <span className="text-[10px] text-slate-400 uppercase font-semibold">Total Attempt Velocity</span>
-          <div className="text-2xl font-mono font-extrabold text-white">418</div>
-          <div className="text-[10px] text-emerald-400 font-semibold">+24% vs last week</div>
+          <div className="text-2xl font-mono font-extrabold text-white">{totalAttempts}</div>
+          <div className="text-[10px] text-emerald-400 font-semibold">{totalAttempts > 0 ? `${totalAttempts} verified submissions` : 'Awaiting candidate submissions'}</div>
         </div>
 
         <div className="glass-card p-5 rounded-2xl border border-white/5 space-y-1">
           <span className="text-[10px] text-slate-400 uppercase font-semibold">Mean Platform Accuracy</span>
-          <div className="text-2xl font-mono font-extrabold text-[#FF8C32]">78.4%</div>
-          <div className="text-[10px] text-slate-400">Competitive baseline</div>
+          <div className="text-2xl font-mono font-extrabold text-[#FF8C32]">{meanAccuracy}%</div>
+          <div className="text-[10px] text-slate-400">{totalAttempts > 0 ? 'Dynamic student average' : 'Awaiting submissions'}</div>
         </div>
 
         <div className="glass-card p-5 rounded-2xl border border-white/5 space-y-1">
           <span className="text-[10px] text-slate-400 uppercase font-semibold">Option E (OMR) Adoption</span>
-          <div className="text-2xl font-mono font-extrabold text-amber-300">14.2%</div>
-          <div className="text-[10px] text-emerald-400">Avoided negative marks</div>
+          <div className="text-2xl font-mono font-extrabold text-amber-300">{optionEAdoption}%</div>
+          <div className="text-[10px] text-emerald-400">{totalOptionEUsed} safe unattempted selections</div>
         </div>
 
         <div className="glass-card p-5 rounded-2xl border border-white/5 space-y-1">
           <span className="text-[10px] text-slate-400 uppercase font-semibold">Completion Ratio</span>
-          <div className="text-2xl font-mono font-extrabold text-purple-300">96.8%</div>
-          <div className="text-[10px] text-slate-400">Zero drop-outs</div>
+          <div className="text-2xl font-mono font-extrabold text-purple-300">{completionRatio}</div>
+          <div className="text-[10px] text-slate-400">{totalAttempts > 0 ? 'Full session submissions' : 'No drop-outs'}</div>
         </div>
       </div>
 
@@ -113,26 +130,34 @@ export const ReportsAnalyticsView: React.FC = () => {
             <div className="space-y-3 text-xs">
               <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between">
                 <div>
-                  <div className="font-bold text-white">Top Accuracy Subject</div>
-                  <div className="text-[11px] text-slate-400">Indian Polity & Governance</div>
+                  <div className="font-bold text-white">Platform Accuracy Baseline</div>
+                  <div className="text-[11px] text-slate-400">Average across all candidate test sessions</div>
                 </div>
-                <span className="text-base font-mono font-bold text-emerald-400">84.2%</span>
+                <span className="text-base font-mono font-bold text-emerald-400">
+                  {totalAttempts > 0 ? `${meanAccuracy}%` : '—'}
+                </span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between">
                 <div>
-                  <div className="font-bold text-white">Highest Negative Mark Avoidance</div>
-                  <div className="text-[11px] text-slate-400">Candidates utilizing Option E on doubt</div>
+                  <div className="font-bold text-white">Negative Mark Avoidance</div>
+                  <div className="text-[11px] text-slate-400">Option E selections protecting scores</div>
                 </div>
-                <span className="text-base font-mono font-bold text-amber-300">+1.32 marks avg</span>
+                <span className="text-base font-mono font-bold text-amber-300">
+                  {totalOptionEUsed > 0 ? `${totalOptionEUsed} questions saved` : '0 questions'}
+                </span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between">
                 <div>
                   <div className="font-bold text-white">Average Exam Completion Speed</div>
-                  <div className="text-[11px] text-slate-400">Across 15-minute speed sprints</div>
+                  <div className="text-[11px] text-slate-400">Time spent per submitted assessment</div>
                 </div>
-                <span className="text-base font-mono font-bold text-cyan-300">11m 40s</span>
+                <span className="text-base font-mono font-bold text-cyan-300">
+                  {avgTimeTakenSeconds > 0
+                    ? `${Math.floor(avgTimeTakenSeconds / 60)}m ${avgTimeTakenSeconds % 60}s`
+                    : '—'}
+                </span>
               </div>
             </div>
           </div>

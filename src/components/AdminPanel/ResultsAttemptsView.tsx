@@ -20,77 +20,8 @@ export const ResultsAttemptsView: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [selectedAttempt, setSelectedAttempt] = useState<TestAttempt | null>(null);
 
-  // Baseline mock attempts to show comprehensive historical records
-  const mockHistoricalAttempts: TestAttempt[] = [
-    {
-      id: 'att-hist-01',
-      testId: 'test-01',
-      testTitle: 'Daily Konoha Speed Test — Day 42',
-      category: 'Daily Test',
-      subject: 'Indian Polity & Governance',
-      studentId: 's-01',
-      studentName: 'Itachi Uchiha',
-      answers: { 'q-101': 'A', 'q-102': 'A', 'q-103': 'B', 'q-104': 'C' },
-      questionStates: {},
-      correctCount: 4,
-      wrongCount: 0,
-      unansweredCount: 0,
-      obtainedMarks: 8,
-      maxMarks: 8,
-      accuracy: 100,
-      timeTakenSeconds: 320,
-      startedAt: '2026-11-06T08:00:00Z',
-      submittedAt: '2026-11-06T08:05:20Z',
-      rank: 1,
-      totalParticipants: 420
-    },
-    {
-      id: 'att-hist-02',
-      testId: 'test-02',
-      testTitle: 'Weekly Chunin Exam Prelims #04',
-      category: 'Weekly Test',
-      subject: 'General Science',
-      studentId: 's-02',
-      studentName: 'Sasuke Uchiha',
-      answers: { 'q-101': 'A', 'q-102': 'A', 'q-103': 'E' },
-      questionStates: {},
-      correctCount: 2,
-      wrongCount: 0,
-      unansweredCount: 1,
-      obtainedMarks: 4,
-      maxMarks: 6,
-      accuracy: 100,
-      timeTakenSeconds: 540,
-      startedAt: '2026-11-05T14:00:00Z',
-      submittedAt: '2026-11-05T14:09:00Z',
-      rank: 3,
-      totalParticipants: 380
-    },
-    {
-      id: 'att-hist-03',
-      testId: 'test-03',
-      testTitle: 'All-India Grand Mock Test #01',
-      category: 'Mock Test',
-      subject: 'Ancient Indian History',
-      studentId: 's-03',
-      studentName: 'Shikamaru Nara',
-      answers: { 'q-101': 'A', 'q-102': 'A', 'q-103': 'B', 'q-104': 'C' },
-      questionStates: {},
-      correctCount: 4,
-      wrongCount: 0,
-      unansweredCount: 0,
-      obtainedMarks: 8,
-      maxMarks: 8,
-      accuracy: 100,
-      timeTakenSeconds: 290,
-      startedAt: '2026-11-04T10:00:00Z',
-      submittedAt: '2026-11-04T10:04:50Z',
-      rank: 2,
-      totalParticipants: 512
-    }
-  ];
-
-  const allAttempts = [...completedAttempts, ...mockHistoricalAttempts];
+  // Real candidate completed attempts directly from Firestore
+  const allAttempts = completedAttempts;
 
   const filteredAttempts = allAttempts.filter(att => {
     const matchesSearch =
@@ -167,43 +98,55 @@ export const ResultsAttemptsView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 font-medium">
-              {filteredAttempts.map(att => (
-                <tr key={att.id} className="hover:bg-white/5 transition">
-                  <td className="px-5 py-3.5">
-                    <div className="font-bold text-white">{att.studentName}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">{att.studentId}</div>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="text-white font-medium">{att.testTitle}</div>
-                    <span className="text-[10px] uppercase font-bold text-[#FF8C32] bg-[#FF8C32]/10 px-1.5 py-0.5 rounded">
-                      {att.category}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-center font-mono font-bold text-emerald-400">
-                    {att.obtainedMarks} / {att.maxMarks}
-                  </td>
-                  <td className="px-5 py-3.5 text-center font-mono font-bold text-white">
-                    {att.accuracy}%
-                  </td>
-                  <td className="px-5 py-3.5 text-center font-mono text-slate-300">
-                    {Math.floor(att.timeTakenSeconds / 60)}m {att.timeTakenSeconds % 60}s
-                  </td>
-                  <td className="px-5 py-3.5 text-center">
-                    <span className="text-xs font-mono font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded">
-                      {att.unansweredCount} Qs (0 Ded.)
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <button
-                      onClick={() => setSelectedAttempt(att)}
-                      className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition cursor-pointer"
-                      title="Inspect Submission"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
+              {filteredAttempts.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
+                    <Award className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                    <p className="text-sm font-semibold text-slate-300">No test attempts recorded in the database yet.</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      As students take and submit tests, their audit records and evaluated scores will appear here.
+                    </p>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredAttempts.map(att => (
+                  <tr key={att.id} className="hover:bg-white/5 transition">
+                    <td className="px-5 py-3.5">
+                      <div className="font-bold text-white">{att.studentName}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">{att.studentId}</div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="text-white font-medium">{att.testTitle}</div>
+                      <span className="text-[10px] uppercase font-bold text-[#FF8C32] bg-[#FF8C32]/10 px-1.5 py-0.5 rounded">
+                        {att.category}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-center font-mono font-bold text-emerald-400">
+                      {att.obtainedMarks} / {att.maxMarks}
+                    </td>
+                    <td className="px-5 py-3.5 text-center font-mono font-bold text-white">
+                      {att.accuracy}%
+                    </td>
+                    <td className="px-5 py-3.5 text-center font-mono text-slate-300">
+                      {Math.floor(att.timeTakenSeconds / 60)}m {att.timeTakenSeconds % 60}s
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      <span className="text-xs font-mono font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded">
+                        {att.unansweredCount} Qs (0 Ded.)
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <button
+                        onClick={() => setSelectedAttempt(att)}
+                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition cursor-pointer"
+                        title="Inspect Submission"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

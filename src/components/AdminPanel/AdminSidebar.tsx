@@ -49,7 +49,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   isOpen,
   onClose
 }) => {
-  const { tests, teachers, notifications } = useQuiz();
+  const { tests, teachers, notifications, firebaseUser } = useQuiz();
 
   const pendingApprovalsCount = tests.filter(t => t.status === 'Pending Approval').length;
   const pendingTeachersCount = teachers.filter(tch => tch.status === 'Pending').length;
@@ -140,11 +140,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       <div className="p-4 border-t border-white/10 bg-slate-900/60">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-xs font-bold text-purple-200">
-            HT
+            {firebaseUser?.displayName ? firebaseUser.displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'AD'}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-bold text-white truncate">Hokage Tsunade</div>
-            <div className="text-[10px] text-emerald-400 font-mono">Super Admin • Live</div>
+            <div className="text-xs font-bold text-white truncate">
+              {firebaseUser?.displayName || 'Administrator'}
+            </div>
+            <div className="text-[10px] text-emerald-400 font-mono truncate">
+              {firebaseUser?.email || 'Super Admin • Live'}
+            </div>
           </div>
         </div>
       </div>

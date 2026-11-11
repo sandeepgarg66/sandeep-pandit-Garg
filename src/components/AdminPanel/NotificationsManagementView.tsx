@@ -162,13 +162,21 @@ export const NotificationsManagementView: React.FC = () => {
         </h3>
 
         <div className="space-y-3">
-          {notifications.map(notif => (
-            <div
-              key={notif.id}
-              className={`glass-card p-5 rounded-2xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                notif.isActive ? 'border-white/10 bg-white/5' : 'border-white/5 opacity-60 bg-black/30'
-              }`}
-            >
+          {notifications.length === 0 ? (
+            <div className="glass-panel p-8 rounded-2xl border border-white/10 text-center space-y-2">
+              <p className="text-sm font-semibold text-slate-300">No active announcements</p>
+              <p className="text-xs text-slate-500">
+                Use the broadcast form above to publish official updates to students, teachers, or all platform users.
+              </p>
+            </div>
+          ) : (
+            notifications.map(notif => (
+              <div
+                key={notif.id}
+                className={`glass-card p-5 rounded-2xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                  notif.isActive ? 'border-white/10 bg-white/5' : 'border-white/5 opacity-60 bg-black/30'
+                }`}
+              >
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span
@@ -226,7 +234,8 @@ export const NotificationsManagementView: React.FC = () => {
                 </button>
               </div>
             </div>
-          ))}
+          ))
+        )}
         </div>
       </div>
     </div>
