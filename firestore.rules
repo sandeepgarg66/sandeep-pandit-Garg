@@ -28,23 +28,52 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isOwnerEmail() {
+      return isSignedIn() &&
+        request.auth.token.email == "sandeepgarg6375494692@gmail.com" &&
+        request.auth.token.email_verified == true;
+    }
+
+    function isCallerActive() {
+      return isOwnerEmail() || (
+        isSignedIn() && (
+          !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+          !('accountStatus' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountStatus != 'Suspended'
+        )
+      );
+    }
+
     function isAdmin() {
-      return isSignedIn() && (
-        (request.auth.token.email == "sandeepgarg6375494692@gmail.com") ||
+      return isSignedIn() && isCallerActive() && (
+        isOwnerEmail() ||
+        (request.auth.token.admin == true) ||
+        (request.auth.token.role == 'admin') ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 
-    function isOwnerEmail() {
-      return isSignedIn() && request.auth.token.email == "sandeepgarg6375494692@gmail.com";
-    }
-
     function isTeacher() {
-      return isSignedIn() && (
+      return isSignedIn() && isCallerActive() && (
         isAdmin() ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher')
+      );
+    }
+
+    function isApprovedTeacher() {
+      return isSignedIn() && isCallerActive() && (
+        isAdmin() ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher' &&
+          (
+            (exists(/databases/$(database)/documents/teacherProfiles/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/teacherProfiles/$(request.auth.uid)).data.status == 'Approved') ||
+            (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teacherApprovalStatus == 'Approved')
+          )
+        )
       );
     }
 
@@ -67,7 +96,7 @@ service cloud.firestore {
              data.id is string && data.id.size() <= 128 &&
              data.name is string && data.name.size() <= 120 &&
              data.email is string && data.email.size() <= 256 &&
-             (data.status == 'Approved' || data.status == 'Pending' || data.status == 'Suspended');
+             (data.status == 'Approved' || data.status == 'Pending' || data.status == 'Rejected' || data.status == 'Suspended');
     }
 
     function isValidTest(data) {
@@ -130,23 +159,50 @@ service cloud.firestore {
              data.target is string && data.target.size() <= 200;
     }
 
-    // 1. Users Collection (PII isolation & Owner-Only Admin Control)
+    // 1. Users Collection (No client self-escalation; Admin-only role mutations; Root owner recovery protected)
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming()) &&
-                   (incoming().role != 'admin' || isOwnerEmail());
-      allow update: if isValidId(userId) && (isOwner(userId) || isAdmin()) && isValidUser(incoming()) &&
-                   (incoming().role == existing().role || isOwnerEmail());
-      allow delete: if isValidId(userId) && isOwnerEmail();
+                   (incoming().role == 'student' || isOwnerEmail()) &&
+                   (!('accountStatus' in incoming()) || incoming().accountStatus == 'Active' || isOwnerEmail()) &&
+                   (!('teacherApprovalStatus' in incoming()) || incoming().teacherApprovalStatus == 'None' || incoming().teacherApprovalStatus == 'Pending' || isOwnerEmail());
+      allow update: if isValidId(userId) && isValidUser(incoming()) && (
+        isOwnerEmail() ||
+        (
+          isAdmin() &&
+          (!('email' in existing()) || existing().email != "sandeepgarg6375494692@gmail.com")
+        ) ||
+        (
+          isOwner(userId) &&
+          isCallerActive() &&
+          (
+            (!('role' in existing()) || existing().role == null || existing().role == '')
+              ? incoming().role == 'student'
+              : incoming().role == existing().role
+          ) &&
+          (!('accountStatus' in incoming()) || !('accountStatus' in existing()) || incoming().accountStatus == existing().accountStatus) &&
+          (!('teacherApprovalStatus' in incoming()) ||
+           ((!('teacherApprovalStatus' in existing()) || existing().teacherApprovalStatus == 'None') && (incoming().teacherApprovalStatus == 'None' || incoming().teacherApprovalStatus == 'Pending')) ||
+           incoming().teacherApprovalStatus == existing().teacherApprovalStatus)
+        )
+      );
+      allow delete: if isValidId(userId) && (
+        isOwnerEmail() ||
+        (
+          isAdmin() &&
+          userId != request.auth.uid &&
+          (!('email' in existing()) || existing().email != "sandeepgarg6375494692@gmail.com")
+        )
+      );
     }
 
     // 2. Student Profiles
     match /studentProfiles/{studentId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
-      allow create: if isValidId(studentId) && isOwner(studentId) && isValidStudentProfile(incoming());
-      allow update: if isValidId(studentId) && (isOwner(studentId) || isAdmin()) && isValidStudentProfile(incoming());
+      allow create: if isValidId(studentId) && isOwner(studentId) && isCallerActive() && isValidStudentProfile(incoming());
+      allow update: if isValidId(studentId) && ((isOwner(studentId) && isCallerActive()) || isAdmin()) && isValidStudentProfile(incoming());
       allow delete: if isValidId(studentId) && isAdmin();
     }
 
@@ -154,49 +210,69 @@ service cloud.firestore {
     match /teacherProfiles/{teacherId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
-      allow create: if isValidId(teacherId) && isOwner(teacherId) && isValidTeacherProfile(incoming()) &&
+      allow create: if isValidId(teacherId) && isOwner(teacherId) && isCallerActive() && isValidTeacherProfile(incoming()) &&
                    (incoming().status == 'Pending' || isAdmin());
       allow update: if isValidId(teacherId) &&
-                   ((isOwner(teacherId) && incoming().status == existing().status) || isAdmin()) &&
+                   (((isOwner(teacherId) && isCallerActive()) && incoming().status == existing().status) || isAdmin()) &&
                    isValidTeacherProfile(incoming());
       allow delete: if isValidId(teacherId) && isAdmin();
     }
 
-    // 4. Tests Collection (Strict Teacher Ownership & Review Lifecycle)
+    // 4. Tests Collection (Strict Teacher Ownership & Admin-Only Review Lifecycle)
     match /tests/{testId} {
-      allow get: if existing().status == 'Published' || isTeacher() || isAdmin();
-      allow list: if resource.data.status == 'Published' || isTeacher() || isAdmin();
-      allow create: if isValidId(testId) && (isTeacher() || isAdmin()) && isValidTest(incoming()) &&
-                   (isAdmin() || (incoming().createdBy == request.auth.uid && (incoming().status == 'Pending Approval' || incoming().status == 'Draft')));
+      allow get: if existing().status == 'Published' || (isSignedIn() && (isAdmin() || (isTeacher() && existing().createdBy == request.auth.uid)));
+      allow list: if resource.data.status == 'Published' || (isSignedIn() && (isAdmin() || (isTeacher() && resource.data.createdBy == request.auth.uid)));
+      allow create: if isValidId(testId) && isApprovedTeacher() && isValidTest(incoming()) &&
+                   (isAdmin() || (
+                     incoming().createdBy == request.auth.uid &&
+                     (incoming().status == 'Pending Approval' || incoming().status == 'Draft') &&
+                     (!('approvedBy' in incoming()) || incoming().approvedBy == null) &&
+                     (!('approvedAt' in incoming()) || incoming().approvedAt == null) &&
+                     (!('approvalStatus' in incoming()) || incoming().approvalStatus == 'Pending')
+                   ));
       allow update: if isValidId(testId) && isValidTest(incoming()) && (
         isAdmin() ||
-        (isTeacher() &&
+        (isApprovedTeacher() &&
          existing().createdBy == request.auth.uid &&
          incoming().createdBy == existing().createdBy &&
-         (incoming().status == 'Draft' || incoming().status == 'Pending Approval')
+         existing().status != 'Published' &&
+         (incoming().status == 'Draft' || incoming().status == 'Pending Approval') &&
+         (!('approvedBy' in incoming()) || incoming().approvedBy == null || incoming().approvedBy == existing().approvedBy) &&
+         (!('approvalStatus' in incoming()) || incoming().approvalStatus == 'Pending' || incoming().approvalStatus == existing().approvalStatus)
         )
       );
       allow delete: if isValidId(testId) && (
         isAdmin() ||
-        (isTeacher() &&
+        (isApprovedTeacher() &&
          existing().createdBy == request.auth.uid &&
          existing().status != 'Published')
       );
     }
 
-    // 5. Questions Collection
+    // 5. Questions Collection (Strict Teacher Ownership Isolation)
     match /questions/{questionId} {
-      allow get, list: if isSignedIn();
-      allow create: if isValidId(questionId) && (isTeacher() || isAdmin()) && isValidQuestion(incoming());
-      allow update: if isValidId(questionId) && (isTeacher() || isAdmin()) && isValidQuestion(incoming());
-      allow delete: if isValidId(questionId) && isAdmin();
+      allow get: if isSignedIn() && (isAdmin() || (isTeacher() && resource.data.createdBy == request.auth.uid));
+      allow list: if isSignedIn() && (isAdmin() || (isTeacher() && resource.data.createdBy == request.auth.uid));
+      allow create: if isValidId(questionId) && isApprovedTeacher() && isValidQuestion(incoming()) &&
+                   (isAdmin() || (incoming().createdBy == request.auth.uid));
+      allow update: if isValidId(questionId) && (
+        isAdmin() ||
+        (isApprovedTeacher() &&
+         existing().createdBy == request.auth.uid &&
+         incoming().createdBy == existing().createdBy &&
+         isValidQuestion(incoming()))
+      );
+      allow delete: if isValidId(questionId) && (
+        isAdmin() ||
+        (isApprovedTeacher() && existing().createdBy == request.auth.uid)
+      );
     }
 
     // 6. Test Attempts (One Attempt Policy)
     match /testAttempts/{attemptId} {
       allow get: if isSignedIn() && (existing().studentId == request.auth.uid || isAdmin() || isTeacher());
       allow list: if isSignedIn() && (resource.data.studentId == request.auth.uid || isAdmin());
-      allow create: if isValidId(attemptId) && isSignedIn() && incoming().studentId == request.auth.uid && isValidAttempt(incoming());
+      allow create: if isValidId(attemptId) && isSignedIn() && isCallerActive() && incoming().studentId == request.auth.uid && isValidAttempt(incoming());
       allow update: if isValidId(attemptId) && isAdmin();
       allow delete: if isValidId(attemptId) && isAdmin();
     }
@@ -205,8 +281,8 @@ service cloud.firestore {
     match /bookmarks/{bookmarkId} {
       allow get: if isSignedIn() && existing().userId == request.auth.uid;
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isValidId(bookmarkId) && isSignedIn() && incoming().userId == request.auth.uid && isValidBookmark(incoming());
-      allow delete: if isValidId(bookmarkId) && isSignedIn() && existing().userId == request.auth.uid;
+      allow create: if isValidId(bookmarkId) && isSignedIn() && isCallerActive() && incoming().userId == request.auth.uid && isValidBookmark(incoming());
+      allow delete: if isValidId(bookmarkId) && isSignedIn() && isCallerActive() && existing().userId == request.auth.uid;
     }
 
     // 8. Notifications Collection
@@ -224,7 +300,12 @@ service cloud.firestore {
     // 10. Audit Logs Collection
     match /auditLogs/{logId} {
       allow get, list: if isAdmin();
-      allow create: if isValidId(logId) && isSignedIn() && isValidAuditLog(incoming());
+      allow create: if isValidId(logId) && isSignedIn() && isCallerActive() && isValidAuditLog(incoming()) &&
+                   (!('category' in incoming()) ||
+                    (incoming().category != 'role_management' &&
+                     incoming().category != 'account_status' &&
+                     incoming().category != 'teacher_approval') ||
+                    isAdmin());
       allow update, delete: if false; // Audit logs are immutable!
     }
   }

@@ -13,21 +13,35 @@ import {
   Activity,
   Flame,
   ShieldCheck,
-  Zap
+  Zap,
+  Shield,
+  Clock,
+  Ban,
+  UserCheck
 } from 'lucide-react';
 import { useQuiz } from '../../context/QuizContext';
 import { AdminTab } from './AdminSidebar';
+import {
+  DirectoryRoleFilter,
+  DirectoryStatusFilter,
+  computeUserManagementStats
+} from '../../lib/roleManagementRules';
 
 interface AdminDashboardOverviewProps {
   setActiveTab: (tab: AdminTab) => void;
+  onOpenUserDirectory?: (roleFilter?: DirectoryRoleFilter, statusFilter?: DirectoryStatusFilter) => void;
 }
 
-export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({ setActiveTab }) => {
+export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
+  setActiveTab,
+  onOpenUserDirectory
+}) => {
   const {
     tests,
     teachers,
     questions,
     allStudents,
+    allUsers,
     auditLogs,
     completedAttempts,
     approveTest,
@@ -38,6 +52,15 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({ 
   const pendingTests = tests.filter(t => t.status === 'Pending Approval');
   const publishedTests = tests.filter(t => t.status === 'Published');
   const pendingTeachers = teachers.filter(t => t.status === 'Pending');
+  const userStats = computeUserManagementStats(allUsers, teachers);
+
+  const openDirectory = (roleFilter: DirectoryRoleFilter = 'all', statusFilter: DirectoryStatusFilter = 'all') => {
+    if (onOpenUserDirectory) {
+      onOpenUserDirectory(roleFilter, statusFilter);
+    } else {
+      setActiveTab('users');
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -62,6 +85,13 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({ 
 
           <div className="flex flex-wrap items-center gap-3">
             <button
+              onClick={() => openDirectory('all', 'all')}
+              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold text-xs shadow-lg transition flex items-center gap-2 cursor-pointer"
+            >
+              <UserCheck className="w-4 h-4 text-[#FF8C32]" />
+              <span>User Directory ({userStats.totalUsers})</span>
+            </button>
+            <button
               onClick={() => setActiveTab('approvals')}
               className="px-4 py-2.5 rounded-xl bg-[#FF8C32] hover:bg-orange-500 text-slate-950 font-bold text-xs shadow-lg transition flex items-center gap-2 cursor-pointer"
             >
@@ -78,6 +108,105 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({ 
           </div>
         </div>
       </div>
+
+      {/* USER MANAGEMENT Live Firebase Statistics */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#FF8C32]">
+              USER MANAGEMENT
+            </h2>
+            <p className="text-[11px] text-slate-400">
+              Live Firebase Firestore directory metrics — click any card to inspect users
+            </p>
+          </div>
+          <button
+            onClick={() => openDirectory('all', 'all')}
+            className="text-xs text-[#FF8C32] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+          >
+            <span>Open Complete Directory</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+          <button
+            onClick={() => openDirectory('all', 'all')}
+            className="glass-card p-4 rounded-2xl border border-white/10 hover:border-[#FF8C32]/50 text-left space-y-1 transition cursor-pointer"
+          >
+            <div className="flex items-center justify-between text-slate-400">
+              <span className="text-[10px] font-bold uppercase">Total Users</span>
+              <Users className="w-4 h-4 text-slate-300" />
+            </div>
+            <div className="text-2xl font-mono font-extrabold text-white">{userStats.totalUsers}</div>
+            <div className="text-[10px] text-slate-400">Registered accounts</div>
+          </button>
+
+          <button
+            onClick={() => openDirectory('student', 'all')}
+            className="glass-card p-4 rounded-2xl border border-white/10 hover:border-emerald-500/40 text-left space-y-1 transition cursor-pointer"
+          >
+            <div className="flex items-center justify-between text-slate-400">
+              <span className="text-[10px] font-bold uppercase">Total Students</span>
+              <UserCheck className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="text-2xl font-mono font-extrabold text-emerald-300">{userStats.totalStudents}</div>
+            <div className="text-[10px] text-slate-400">Verified candidates</div>
+          </button>
+
+          <button
+            onClick={() => openDirectory('teacher', 'all')}
+            className="glass-card p-4 rounded-2xl border border-white/10 hover:border-sky-500/40 text-left space-y-1 transition cursor-pointer"
+          >
+            <div className="flex items-center justify-between text-slate-400">
+              <span className="text-[10px] font-bold uppercase">Total Teachers</span>
+              <GraduationCap className="w-4 h-4 text-sky-400" />
+            </div>
+            <div className="text-2xl font-mono font-extrabold text-sky-300">{userStats.totalTeachers}</div>
+            <div className="text-[10px] text-slate-400">Approved educators</div>
+          </button>
+
+          <button
+            onClick={() => openDirectory('admin', 'all')}
+            className="glass-card p-4 rounded-2xl border border-white/10 hover:border-purple-500/40 text-left space-y-1 transition cursor-pointer"
+          >
+            <div className="flex items-center justify-between text-slate-400">
+              <span className="text-[10px] font-bold uppercase">Total Admins</span>
+              <Shield className="w-4 h-4 text-purple-400" />
+            </div>
+            <div className="text-2xl font-mono font-extrabold text-purple-300">{userStats.totalAdmins}</div>
+            <div className="text-[10px] text-slate-400">Platform governance</div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('teachers')}
+            className="glass-card p-4 rounded-2xl border border-amber-500/20 hover:border-amber-400/50 text-left space-y-1 transition cursor-pointer"
+          >
+            <div className="flex items-center justify-between text-slate-400">
+              <span className="text-[10px] font-bold uppercase">Pending Teacher Requests</span>
+              <Clock className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="text-2xl font-mono font-extrabold text-amber-300">
+              {userStats.pendingTeacherRequests}
+            </div>
+            <div className="text-[10px] text-amber-300/80">Awaiting approval</div>
+          </button>
+
+          <button
+            onClick={() => openDirectory('all', 'Suspended')}
+            className="glass-card p-4 rounded-2xl border border-rose-500/20 hover:border-rose-400/50 text-left space-y-1 transition cursor-pointer"
+          >
+            <div className="flex items-center justify-between text-slate-400">
+              <span className="text-[10px] font-bold uppercase">Suspended Users</span>
+              <Ban className="w-4 h-4 text-rose-400" />
+            </div>
+            <div className="text-2xl font-mono font-extrabold text-rose-300">
+              {userStats.suspendedUsers}
+            </div>
+            <div className="text-[10px] text-slate-400">Blocked accounts</div>
+          </button>
+        </div>
+      </section>
 
       {/* 8 Metric Cards Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

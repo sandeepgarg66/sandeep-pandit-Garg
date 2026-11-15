@@ -11,6 +11,7 @@ import {
 import { useQuiz } from '../../context/QuizContext';
 import { AdminSidebar, AdminTab } from './AdminSidebar';
 import { AdminDashboardOverview } from './AdminDashboardOverview';
+import { UserDirectoryView } from './UserDirectoryView';
 import { StudentManagementView } from './StudentManagementView';
 import { TeacherManagementView } from './TeacherManagementView';
 import { TestManagementView } from './TestManagementView';
@@ -25,17 +26,29 @@ import { HomepageManagementView } from './HomepageManagementView';
 import { ReportsAnalyticsView } from './ReportsAnalyticsView';
 import { AdminLogsView } from './AdminLogsView';
 import { AdminSettingsView } from './AdminSettingsView';
+import { DirectoryRoleFilter, DirectoryStatusFilter } from '../../lib/roleManagementRules';
 
 export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [directoryRoleFilter, setDirectoryRoleFilter] = useState<DirectoryRoleFilter>('all');
+  const [directoryStatusFilter, setDirectoryStatusFilter] = useState<DirectoryStatusFilter>('all');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { tests, setCurrentRole, setActiveSection } = useQuiz();
+  const { tests } = useQuiz();
 
   const pendingApprovalsCount = tests.filter(t => t.status === 'Pending Approval').length;
 
+  const handleOpenUserDirectory = (
+    roleFilter: DirectoryRoleFilter = 'all',
+    statusFilter: DirectoryStatusFilter = 'all'
+  ) => {
+    setDirectoryRoleFilter(roleFilter);
+    setDirectoryStatusFilter(statusFilter);
+    setActiveTab('users');
+  };
+
   return (
     <div className="w-full max-w-full overflow-x-hidden flex min-h-[calc(100vh-4rem)] bg-[#0B0F19]">
-      {/* 15-Section Responsive Sidebar */}
+      {/* Responsive Admin Sidebar */}
       <AdminSidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -87,7 +100,16 @@ export const AdminDashboard: React.FC = () => {
 
         {/* Dynamic View Rendering based on activeTab */}
         {activeTab === 'overview' && (
-          <AdminDashboardOverview setActiveTab={setActiveTab} />
+          <AdminDashboardOverview
+            setActiveTab={setActiveTab}
+            onOpenUserDirectory={handleOpenUserDirectory}
+          />
+        )}
+        {activeTab === 'users' && (
+          <UserDirectoryView
+            initialRoleFilter={directoryRoleFilter}
+            initialStatusFilter={directoryStatusFilter}
+          />
         )}
         {activeTab === 'students' && <StudentManagementView />}
         {activeTab === 'teachers' && <TeacherManagementView />}

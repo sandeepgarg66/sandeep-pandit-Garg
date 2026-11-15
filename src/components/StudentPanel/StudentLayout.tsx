@@ -22,8 +22,19 @@ interface StudentLayoutProps {
 }
 
 export const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
-  const { activeSection, setActiveSection, studentProfile, currentRole } = useQuiz();
+  const { activeSection, setActiveSection, studentProfile, verifiedRole, teacherStatus, setCurrentRole } = useQuiz();
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+
+  const canAccessTeacherPanel = verifiedRole === 'teacher' || verifiedRole === 'admin';
+  const handleGoTeacherWorkspace = () => {
+    setCurrentRole('teacher');
+    if (verifiedRole === 'admin' || teacherStatus === 'Approved') {
+      setActiveSection('teacher-dashboard');
+    } else {
+      setActiveSection('teacher-pending');
+    }
+    setIsMobileDrawerOpen(false);
+  };
 
   const navigationItems = [
     { id: 'student-dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -85,11 +96,17 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
             <div className="p-4 border-b border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="relative shrink-0">
-                  <img
-                    src={studentProfile.photoURL}
-                    alt={studentProfile.name}
-                    className="w-10 h-10 rounded-full object-cover border-2 border-[#FF8C32]"
-                  />
+                  {studentProfile.photoURL ? (
+                    <img
+                      src={studentProfile.photoURL}
+                      alt={studentProfile.name}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-[#FF8C32]"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-[#FF8C32]/20 border-2 border-[#FF8C32] text-[#FF8C32] font-bold text-sm flex items-center justify-center">
+                      {(studentProfile.name || 'A').charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#0B0F19]" />
                 </div>
                 <div className="min-w-0">
@@ -116,12 +133,9 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
 
             {/* Navigation Links */}
             <nav className="p-3 space-y-1 flex-1 overflow-y-auto">
-              {currentRole === 'teacher' && (
+              {canAccessTeacherPanel && (
                 <button
-                  onClick={() => {
-                    setActiveSection('teacher-dashboard');
-                    setIsMobileDrawerOpen(false);
-                  }}
+                  onClick={handleGoTeacherWorkspace}
                   className="w-full mb-3 flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600/30 transition cursor-pointer"
                 >
                   <div className="flex items-center gap-2.5">
@@ -189,11 +203,17 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
         {/* Student Mini Card Header */}
         <div className="p-5 border-b border-white/10 flex items-center gap-3">
           <div className="relative">
-            <img
-              src={studentProfile.photoURL}
-              alt={studentProfile.name}
-              className="w-11 h-11 rounded-full object-cover border-2 border-[#FF8C32]"
-            />
+            {studentProfile.photoURL ? (
+              <img
+                src={studentProfile.photoURL}
+                alt={studentProfile.name}
+                className="w-11 h-11 rounded-full object-cover border-2 border-[#FF8C32]"
+              />
+            ) : (
+              <div className="w-11 h-11 rounded-full bg-[#FF8C32]/20 border-2 border-[#FF8C32] text-[#FF8C32] font-bold text-base flex items-center justify-center">
+                {(studentProfile.name || 'A').charAt(0).toUpperCase()}
+              </div>
+            )}
             <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-[#0B0F19]" />
           </div>
           <div className="min-w-0">
@@ -211,9 +231,9 @@ export const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
 
         {/* Navigation Menu */}
         <nav className="p-3 space-y-1 flex-1 overflow-y-auto">
-          {currentRole === 'teacher' && (
+          {canAccessTeacherPanel && (
             <button
-              onClick={() => setActiveSection('teacher-dashboard')}
+              onClick={handleGoTeacherWorkspace}
               className="w-full mb-3 flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600/30 transition cursor-pointer"
             >
               <div className="flex items-center gap-2.5">

@@ -6,18 +6,30 @@ import {
   signOut,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  updateProfile
+  sendPasswordResetEmail,
+  updateProfile,
+  setPersistence,
+  browserLocalPersistence
 } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Initialize Firebase App with provisioned credentials
+// Initialize Firebase App with provisioned credentials (do not replace project)
 const app = initializeApp(firebaseConfig);
 
 // CRITICAL: Must pass firebaseConfig.firestoreDatabaseId to getFirestore
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+
+// Ensure persistent login across browser refreshes
+setPersistence(auth, browserLocalPersistence).catch(err => {
+  console.warn('Auth persistence setup notice:', err);
+});
+
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
 
 export enum OperationType {
   CREATE = 'create',
@@ -79,13 +91,52 @@ export async function testConnection() {
 
 testConnection();
 
+export function getFriendlyAuthError(err: any): string {
+  const code = err?.code || '';
+  const message = err?.message || '';
+  const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+
+  if (code === 'auth/unauthorized-domain' || message.includes('auth/unauthorized-domain')) {
+    return `Google Sign-In is blocked on "${currentHost}" (auth/unauthorized-domain). The project owner must add "${currentHost}" to Firebase Console → Authentication → Settings → Authorized domains. You can still sign in or register using Email & Password below.`;
+  }
+  if (code === 'auth/popup-closed-by-user') {
+    return 'Google sign-in popup was closed before completing authentication.';
+  }
+  if (code === 'auth/popup-blocked') {
+    return 'Sign-in popup was blocked by your browser. Please allow popups for this site or sign in with Email & Password.';
+  }
+  if (code === 'auth/email-already-in-use') {
+    return 'An account with this email address already exists. Please sign in instead.';
+  }
+  if (
+    code === 'auth/invalid-credential' ||
+    code === 'auth/wrong-password' ||
+    code === 'auth/user-not-found'
+  ) {
+    return 'Invalid email address or password. Please check your credentials and try again.';
+  }
+  if (code === 'auth/weak-password') {
+    return 'Password is too weak. Please enter at least 6 characters.';
+  }
+  if (code === 'auth/invalid-email') {
+    return 'Please enter a valid email address.';
+  }
+  if (code === 'auth/too-many-requests') {
+    return 'Too many failed sign-in attempts. Please wait a few minutes or use Forgot Password.';
+  }
+  if (code === 'auth/network-request-failed') {
+    return 'Network error occurred. Please check your internet connection and try again.';
+  }
+  return message || 'Authentication failed. Please try again.';
+}
+
 // Google Sign-In with popup helper
 export async function signInWithGoogle() {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error) {
-    console.error('Sign-in failed:', error);
+    console.error('Google sign-in failed:', error);
     throw error;
   }
 }
@@ -125,3 +176,12 @@ export async function loginWithEmailPassword(email: string, pass: string) {
   }
 }
 
+// Forgot Password Reset Email
+export async function resetUserPassword(email: string) {
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch (error) {
+    console.error('Password reset failed:', error);
+    throw error;
+  }
+}

@@ -14,7 +14,8 @@ import {
   PYQSet,
   PlatformSettings,
   SubjectItem,
-  UserAccount
+  UserAccount,
+  TestStatus
 } from '../types/quiz';
 import {
   MOCK_TESTS,
@@ -40,17 +41,27 @@ import {
   logOutUser
 } from '../lib/firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import {
+  apiChangeUserRole,
+  apiChangeUserStatus,
+  apiDeleteUserAccount,
+  apiFetchAuthMetadata,
+  apiReviewTeacherRequest
+} from '../lib/adminRoleApi';
+import type { RoleActionId } from '../lib/roleManagementRules';
 import {
   initializeExamSession,
   persistExamSession,
   clearExamSession,
   calculateAndPersistTestResult,
   checkStudentAttempted,
-  fetchCandidateSubmissions,
-  ActiveExamSession
+  fetchCandidateSubmissions
 } from '../lib/examService';
 import {
+  fetchPublishedTests,
+  fetchTeacherTests,
+  fetchTeacherQuestions,
   fetchRealTests,
   fetchRealQuestions,
   fetchRealTeachers,
@@ -88,6 +99,8 @@ interface ActiveExamState {
 interface QuizContextType {
   // Navigation & Role
   currentRole: UserRole;
+  verifiedRole: UserRole | null;
+  authLoading: boolean;
   setCurrentRole: (role: UserRole) => void;
   activeSection: string;
   setActiveSection: (section: string) => void;
@@ -140,7 +153,7 @@ interface QuizContextType {
   addQuestionsToTest: (testId: string, questionsList: Question[]) => void;
   updateQuestion: (id: string, updated: Partial<Question>) => void;
   deleteQuestion: (id: string) => void;
-  createTest: (testData: Omit<Test, 'id' | 'createdAt' | 'status'>) => void;
+  createTest: (testData: Omit<Test, 'id' | 'createdAt' | 'status'> & { status?: TestStatus }) => void;
   approveTest: (testId: string) => void;
   rejectTest: (testId: string, reason?: string) => void;
   publishTest: (testId: string) => void;
@@ -152,10 +165,36 @@ interface QuizContextType {
 
   // Admin Specific Controls
   allUsers: UserAccount[];
-  updateStudentStatus: (studentId: string, status: 'Active' | 'Suspended') => void;
-  approveTeacher: (teacherId: string) => void;
-  rejectTeacher: (teacherId: string) => void;
-  suspendTeacher: (teacherId: string) => void;
+  adminSdkConfigured: boolean;
+  authMetadataMap: Record<string, { lastSignInTime?: string; creationTime?: string }>;
+  refreshAdminDirectoryData: () => Promise<void>;
+  changeUserRoleViaBackend: (params: {
+    targetUid: string;
+    newRole: UserRole;
+    actionId?: RoleActionId;
+    reason?: string;
+    confirmAdminPrivilegeChange?: boolean;
+  }) => Promise<{ customClaimsSynced: boolean; auditLog: AdminAuditLog }>;
+  changeUserStatusViaBackend: (params: {
+    targetUid: string;
+    newStatus: 'Active' | 'Suspended';
+    reason?: string;
+  }) => Promise<{ customClaimsSynced: boolean; auditLog: AdminAuditLog }>;
+  reviewTeacherRequestViaBackend: (params: {
+    targetUid: string;
+    decision: 'approve_teacher' | 'reject' | 'assign_student' | 'assign_admin';
+    reason?: string;
+    confirmAdminPrivilegeChange?: boolean;
+  }) => Promise<{ customClaimsSynced: boolean; auditLog: AdminAuditLog }>;
+  deleteUserAccountViaBackend: (params: {
+    targetUid: string;
+    confirmDelete: boolean;
+    reason?: string;
+  }) => Promise<{ auditLog: AdminAuditLog }>;
+  updateStudentStatus: (studentId: string, status: 'Active' | 'Suspended') => Promise<void>;
+  approveTeacher: (teacherId: string) => Promise<void>;
+  rejectTeacher: (teacherId: string, reason?: string) => Promise<void>;
+  suspendTeacher: (teacherId: string) => Promise<void>;
   promoteUserToAdmin: (targetUid: string) => Promise<void>;
   revokeAdminRole: (targetUid: string, fallbackRole?: 'student' | 'teacher') => Promise<void>;
   addNotification: (notif: Omit<NotificationAnnouncement, 'id' | 'createdAt'>) => void;
@@ -170,7 +209,9 @@ interface QuizContextType {
 
   // Real Firebase Auth & Modal Controls
   firebaseUser: FirebaseUser | null;
-  teacherStatus: 'Approved' | 'Pending' | 'Suspended' | null;
+  accountStatus: 'Active' | 'Suspended' | null;
+  teacherStatus: 'Approved' | 'Pending' | 'Rejected' | 'Suspended' | null;
+  teacherRejectionReason: string | null;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
   authModalMode: 'login' | 'register';
@@ -183,13 +224,94 @@ interface QuizContextType {
   logout: () => Promise<void>;
 }
 
+const SECTION_TO_PATH: Record<string, string> = {
+  'home': '/',
+  'student-new-tests': '/new-tests',
+  'student-practice': '/practice',
+  'student-leaderboard': '/leaderboard',
+  'student-dashboard': '/student',
+  'student-performance': '/student/performance',
+  'student-previous-rank': '/student/rank',
+  'student-bookmarks': '/student/bookmarks',
+  'student-profile': '/student/profile',
+  'teacher-dashboard': '/teacher',
+  'teacher-pending': '/teacher-pending',
+  'admin-dashboard': '/admin'
+};
+
+function resolveSectionFromLocation(): string {
+  if (typeof window === 'undefined') return 'home';
+  const rawHash = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
+  const rawPath = window.location.pathname.replace(/\/+$/, '').toLowerCase() || '/';
+  const candidate = rawHash || rawPath;
+
+  if (candidate === '/' || candidate === '' || candidate === 'home') return 'home';
+  if (candidate === '/new-tests' || candidate === 'new-tests' || candidate === 'student-new-tests') return 'student-new-tests';
+  if (candidate === '/practice' || candidate === 'practice' || candidate === 'student-practice') return 'student-practice';
+  if (candidate === '/leaderboard' || candidate === 'leaderboard' || candidate === 'student-leaderboard') return 'student-leaderboard';
+  if (candidate === '/student' || candidate === '/student-dashboard' || candidate === 'student' || candidate === 'student-dashboard') return 'student-dashboard';
+  if (candidate === '/student/performance' || candidate === 'student-performance') return 'student-performance';
+  if (candidate === '/student/rank' || candidate === 'student-previous-rank') return 'student-previous-rank';
+  if (candidate === '/student/bookmarks' || candidate === 'student-bookmarks') return 'student-bookmarks';
+  if (candidate === '/student/profile' || candidate === 'student-profile') return 'student-profile';
+  if (candidate === '/teacher' || candidate === '/teacher-dashboard' || candidate === 'teacher' || candidate === 'teacher-dashboard') return 'teacher-dashboard';
+  if (candidate === '/teacher-pending' || candidate === 'teacher-pending') return 'teacher-pending';
+  if (candidate === '/admin' || candidate === '/admin-dashboard' || candidate === 'admin' || candidate === 'admin-dashboard') return 'admin-dashboard';
+  return 'home';
+}
+
 const QuizContext = createContext<QuizContextType | undefined>(undefined);
 
 export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [currentRole, setCurrentRole] = useState<UserRole>('student');
-  const [activeSection, setActiveSection] = useState<string>('home');
+  const [currentRole, setCurrentRoleState] = useState<UserRole>('student');
+  const [verifiedRole, setVerifiedRole] = useState<UserRole | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [activeSection, setActiveSectionState] = useState<string>(() => resolveSectionFromLocation());
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+
+  const setActiveSection = (section: string) => {
+    setActiveSectionState(section);
+    if (typeof window !== 'undefined' && section !== 'exam') {
+      const targetPath = SECTION_TO_PATH[section] || '/';
+      if (window.location.pathname !== targetPath || window.location.hash) {
+        try {
+          window.history.pushState({ section }, '', targetPath);
+        } catch {
+          // Ignore pushState restrictions in sandboxed environments
+        }
+      }
+    }
+  };
+
+  // Strict Role Switcher Guard: prevents client-side escalation above verifiedRole
+  const setCurrentRole = (requestedRole: UserRole) => {
+    if (verifiedRole === 'admin') {
+      setCurrentRoleState(requestedRole);
+      return;
+    }
+    if (verifiedRole === 'teacher') {
+      if (requestedRole === 'teacher' || requestedRole === 'student') {
+        setCurrentRoleState(requestedRole);
+      } else {
+        setCurrentRoleState('student');
+      }
+      return;
+    }
+    setCurrentRoleState('student');
+  };
+
+  useEffect(() => {
+    const onPopState = () => {
+      setActiveSectionState(resolveSectionFromLocation());
+    };
+    window.addEventListener('popstate', onPopState);
+    window.addEventListener('hashchange', onPopState);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+      window.removeEventListener('hashchange', onPopState);
+    };
+  }, []);
 
   const [tests, setTests] = useState<Test[]>(MOCK_TESTS);
   const [questions, setQuestions] = useState<Question[]>(MOCK_QUESTIONS);
@@ -220,8 +342,12 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
 
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [teacherStatus, setTeacherStatus] = useState<'Approved' | 'Pending' | 'Suspended' | null>(null);
+  const [accountStatus, setAccountStatus] = useState<'Active' | 'Suspended' | null>(null);
+  const [teacherStatus, setTeacherStatus] = useState<'Approved' | 'Pending' | 'Rejected' | 'Suspended' | null>(null);
+  const [teacherRejectionReason, setTeacherRejectionReason] = useState<string | null>(null);
   const [allUsers, setAllUsers] = useState<UserAccount[]>([]);
+  const [adminSdkConfigured, setAdminSdkConfigured] = useState<boolean>(false);
+  const [authMetadataMap, setAuthMetadataMap] = useState<Record<string, { lastSignInTime?: string; creationTime?: string }>>({});
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [isRoleSelectionModalOpen, setIsRoleSelectionModalOpen] = useState(false);
@@ -232,180 +358,374 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
   const closeAuthModal = () => setIsAuthModalOpen(false);
 
-  // Load real production data from Firestore on mount
+  // Load role-scoped data from Firestore whenever verifiedRole / user changes
   useEffect(() => {
     let isMounted = true;
-    async function loadProductionData() {
+    async function loadRoleScopedData() {
       try {
-        const [realTests, realQuestions, realTeachers, realStudents, allAttempts, realNotifs, realLogs, realUsers] = await Promise.all([
-          fetchRealTests(),
-          fetchRealQuestions(),
-          fetchRealTeachers(),
-          fetchRealStudents(),
-          fetchAllTestAttempts(),
-          fetchRealNotifications(),
-          fetchRealAuditLogs(),
-          fetchRealUsers()
-        ]);
-
+        const publishedTests = await fetchPublishedTests();
         if (!isMounted) return;
 
-        if (realTests && realTests.length > 0) setTests(realTests);
-        if (realQuestions && realQuestions.length > 0) setQuestions(realQuestions);
-        if (realTeachers && realTeachers.length > 0) setTeachers(realTeachers);
-        if (realStudents && realStudents.length > 0) setAllStudents(realStudents);
-        if (realUsers && realUsers.length > 0) setAllUsers(realUsers);
-        if (allAttempts && allAttempts.length > 0) {
-          setCompletedAttempts(allAttempts);
-          const computed = computeRealLeaderboards(allAttempts);
-          setDailyLeaderboardState(computed.daily);
-          setWeeklyLeaderboardState(computed.weekly);
+        if (firebaseUser?.uid) {
+          const realNotifs = await fetchRealNotifications();
+          if (isMounted && realNotifs && realNotifs.length > 0) {
+            setNotifications(realNotifs);
+          }
         }
-        if (realNotifs && realNotifs.length > 0) setNotifications(realNotifs);
-        if (realLogs && realLogs.length > 0) setAuditLogs(realLogs);
+
+        if (verifiedRole === 'admin' && accountStatus !== 'Suspended') {
+          const [realTests, realQuestions, realTeachers, realStudents, realLogs, realUsers, allAttempts, authMeta] =
+            await Promise.all([
+              fetchRealTests(),
+              fetchRealQuestions(),
+              fetchRealTeachers(),
+              fetchRealStudents(),
+              fetchRealAuditLogs(),
+              fetchRealUsers(),
+              fetchAllTestAttempts(),
+              apiFetchAuthMetadata().catch(() => ({ adminSdkConfigured: false, metadata: {} }))
+            ]);
+          if (!isMounted) return;
+          if (realTests && realTests.length > 0) setTests(realTests);
+          else if (publishedTests.length > 0) setTests(publishedTests);
+          if (realQuestions && realQuestions.length > 0) setQuestions(realQuestions);
+          setTeachers(realTeachers || []);
+          setAllStudents(realStudents || []);
+          setAllUsers(realUsers || []);
+          setAuditLogs(realLogs || []);
+          setAdminSdkConfigured(authMeta.adminSdkConfigured);
+          setAuthMetadataMap(authMeta.metadata || {});
+          if (allAttempts && allAttempts.length > 0) {
+            setCompletedAttempts(allAttempts);
+            const computed = computeRealLeaderboards(allAttempts);
+            setDailyLeaderboardState(computed.daily);
+            setWeeklyLeaderboardState(computed.weekly);
+          }
+        } else if (verifiedRole === 'teacher' && accountStatus !== 'Suspended' && firebaseUser?.uid) {
+          const [teacherTests, teacherQuestions] = await Promise.all([
+            fetchTeacherTests(firebaseUser.uid),
+            fetchTeacherQuestions(firebaseUser.uid)
+          ]);
+          if (!isMounted) return;
+          const mergedMap = new Map<string, Test>();
+          [...publishedTests, ...teacherTests].forEach(t => mergedMap.set(t.id, t));
+          if (mergedMap.size > 0) {
+            setTests(Array.from(mergedMap.values()));
+          }
+          if (teacherQuestions && teacherQuestions.length > 0) {
+            setQuestions(teacherQuestions);
+          }
+          setAllUsers([]);
+          setAllStudents([]);
+          setAdminSdkConfigured(false);
+          setAuthMetadataMap({});
+        } else {
+          if (publishedTests && publishedTests.length > 0) {
+            setTests(publishedTests);
+          }
+          setAllUsers([]);
+          setAllStudents([]);
+          setAdminSdkConfigured(false);
+          setAuthMetadataMap({});
+        }
       } catch (err) {
-        console.warn('Failed to load initial Firestore data:', err);
+        console.warn('Failed to load Firestore data:', err);
       }
     }
 
-    loadProductionData();
+    loadRoleScopedData();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [verifiedRole, accountStatus, firebaseUser?.uid]);
 
-  // Sync Firebase Auth state, verify roles in Firestore, and fetch candidate data
+  // Sync Firebase Auth state, subscribe to live user role/status changes, and fetch candidate data
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async user => {
+    let unsubscribeUserDoc: (() => void) | null = null;
+    let unsubscribeTeacherDoc: (() => void) | null = null;
+
+    const cleanupDocListeners = () => {
+      if (unsubscribeUserDoc) {
+        unsubscribeUserDoc();
+        unsubscribeUserDoc = null;
+      }
+      if (unsubscribeTeacherDoc) {
+        unsubscribeTeacherDoc();
+        unsubscribeTeacherDoc = null;
+      }
+    };
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async user => {
+      cleanupDocListeners();
+      setAuthLoading(true);
       setFirebaseUser(user);
+
       if (user) {
-        // Owner verification: sandeepgarg6375494692@gmail.com is the permanent root administrator
-        if (user.email === 'sandeepgarg6375494692@gmail.com') {
-          setCurrentRole('admin');
-          try {
-            await setDoc(doc(db, 'users', user.uid), {
-              uid: user.uid,
-              id: user.uid,
-              name: user.displayName || 'Sandeep Garg (Owner)',
-              displayName: user.displayName || 'Sandeep Garg (Owner)',
-              email: user.email,
-              photoURL: user.photoURL || '',
-              role: 'admin',
-              accountStatus: 'Active',
-              teacherApprovalStatus: 'None',
-              updatedAt: new Date().toISOString()
-            }, { merge: true });
-          } catch (e) {
-            console.warn('Owner profile sync notice:', e);
-          }
-        } else {
-          try {
-            const userSnap = await getDoc(doc(db, 'users', user.uid));
-            if (userSnap.exists() && userSnap.data()?.role) {
-              const uData = userSnap.data();
-              if (uData.role === 'admin') {
-                setCurrentRole('admin');
-              } else if (uData.role === 'teacher') {
-                setCurrentRole('teacher');
+        try {
+          const isOwnerEmail =
+            user.email === 'sandeepgarg6375494692@gmail.com' && user.emailVerified !== false;
+          const nowIso = new Date().toISOString();
+
+          const applyRoleFromDoc = async (uData: Record<string, unknown> | null) => {
+            let hasAdminClaim = false;
+            try {
+              const tokenResult = await user.getIdTokenResult();
+              hasAdminClaim = tokenResult.claims?.admin === true || tokenResult.claims?.role === 'admin';
+            } catch {
+              hasAdminClaim = false;
+            }
+
+            if (isOwnerEmail) {
+              setVerifiedRole('admin');
+              setCurrentRoleState('admin');
+              setAccountStatus('Active');
+              setTeacherStatus(null);
+              setTeacherRejectionReason(null);
+              setIsRoleSelectionModalOpen(false);
+              return;
+            }
+
+            const docStatus: 'Active' | 'Suspended' =
+              uData?.accountStatus === 'Suspended' ? 'Suspended' : 'Active';
+            setAccountStatus(docStatus);
+
+            const dbRole = uData?.role;
+            const approvalState = uData?.teacherApprovalStatus;
+            const rejectionReasonVal =
+              typeof uData?.rejectionReason === 'string' ? uData.rejectionReason : null;
+            setTeacherRejectionReason(rejectionReasonVal);
+
+            if (dbRole === 'admin' || (hasAdminClaim && !dbRole)) {
+              setVerifiedRole('admin');
+              setCurrentRoleState(prev => (prev === 'student' || prev === 'teacher' ? prev : 'admin'));
+              setTeacherStatus(null);
+              setIsRoleSelectionModalOpen(false);
+            } else if (dbRole === 'teacher') {
+              setVerifiedRole('teacher');
+              setCurrentRoleState(prev => (prev === 'student' ? 'student' : 'teacher'));
+              setIsRoleSelectionModalOpen(false);
+              try {
                 const tchDoc = await getDoc(doc(db, 'teacherProfiles', user.uid));
-                if (tchDoc.exists()) {
+                if (tchDoc.exists() && tchDoc.data()?.status) {
                   setTeacherStatus(tchDoc.data().status);
+                } else if (
+                  approvalState === 'Approved' ||
+                  approvalState === 'Rejected' ||
+                  approvalState === 'Suspended' ||
+                  approvalState === 'Pending'
+                ) {
+                  setTeacherStatus(approvalState);
                 } else {
                   setTeacherStatus('Pending');
                 }
+              } catch {
+                setTeacherStatus(
+                  approvalState === 'Approved'
+                    ? 'Approved'
+                    : approvalState === 'Suspended'
+                    ? 'Suspended'
+                    : approvalState === 'Rejected'
+                    ? 'Rejected'
+                    : 'Pending'
+                );
+              }
+            } else if (dbRole === 'student') {
+              setVerifiedRole('student');
+              setCurrentRoleState('student');
+              setIsRoleSelectionModalOpen(false);
+              if (
+                approvalState === 'Pending' ||
+                approvalState === 'Rejected' ||
+                approvalState === 'Suspended' ||
+                approvalState === 'Approved'
+              ) {
+                setTeacherStatus(approvalState);
               } else {
-                setCurrentRole('student');
+                setTeacherStatus(null);
               }
             } else {
-              // Role not yet assigned in Firestore! Prompt role selection modal
+              // Missing or unverified role (new Google Sign-In or legacy user without role) -> Prompt Role Selection
+              setVerifiedRole(null);
+              setCurrentRoleState('student');
+              setTeacherStatus(null);
               setIsRoleSelectionModalOpen(true);
             }
+          };
+
+          if (isOwnerEmail) {
+            try {
+              const existingOwnerSnap = await getDoc(doc(db, 'users', user.uid));
+              await setDoc(
+                doc(db, 'users', user.uid),
+                {
+                  uid: user.uid,
+                  id: user.uid,
+                  name: user.displayName || existingOwnerSnap.data()?.name || 'Sandeep Garg (Owner)',
+                  displayName: user.displayName || existingOwnerSnap.data()?.displayName || 'Sandeep Garg (Owner)',
+                  email: user.email,
+                  photoURL: user.photoURL || existingOwnerSnap.data()?.photoURL || '',
+                  role: 'admin',
+                  accountStatus: 'Active',
+                  teacherApprovalStatus: 'None',
+                  lastLoginAt: nowIso,
+                  createdAt: existingOwnerSnap.exists()
+                    ? existingOwnerSnap.data()?.createdAt || nowIso
+                    : nowIso,
+                  updatedAt: nowIso
+                },
+                { merge: true }
+              );
+            } catch (e) {
+              console.warn('Owner profile sync notice:', e);
+            }
+          } else {
+            try {
+              const initialSnap = await getDoc(doc(db, 'users', user.uid));
+              if (initialSnap.exists()) {
+                await applyRoleFromDoc(initialSnap.data());
+                // Record lastLoginAt safely for existing user
+                setDoc(
+                  doc(db, 'users', user.uid),
+                  {
+                    uid: user.uid,
+                    id: user.uid,
+                    email: initialSnap.data()?.email || user.email || '',
+                    role: initialSnap.data()?.role || 'student',
+                    lastLoginAt: nowIso
+                  },
+                  { merge: true }
+                ).catch(() => {});
+              } else {
+                await applyRoleFromDoc(null);
+              }
+            } catch (e) {
+              console.warn('User role fetch error:', e);
+              setVerifiedRole(null);
+              setCurrentRoleState('student');
+            }
+          }
+
+          // Live onSnapshot listener on users/{uid} to enforce role/status revocations immediately
+          unsubscribeUserDoc = onSnapshot(
+            doc(db, 'users', user.uid),
+            snapshot => {
+              if (snapshot.exists()) {
+                applyRoleFromDoc(snapshot.data());
+                user.getIdToken(true).catch(() => {});
+              }
+            },
+            err => {
+              console.warn('User role listener warning:', err);
+            }
+          );
+
+          // Live listener on teacherProfiles/{uid} for immediate Teacher approval reflection
+          unsubscribeTeacherDoc = onSnapshot(
+            doc(db, 'teacherProfiles', user.uid),
+            snapshot => {
+              if (snapshot.exists() && snapshot.data()?.status) {
+                setTeacherStatus(snapshot.data().status);
+              }
+            },
+            () => {}
+          );
+
+          if (isOwnerEmail) {
+            await applyRoleFromDoc({ role: 'admin', accountStatus: 'Active' });
+          }
+
+          // Fetch candidate real submissions and bookmarks from Firestore
+          let userAttempts: TestAttempt[] = [];
+          try {
+            userAttempts = await fetchCandidateSubmissions(user.uid);
+            setCompletedAttempts(userAttempts || []);
           } catch (e) {
-            console.warn('User role fetch error:', e);
+            console.warn('Submissions fetch error:', e);
+            setCompletedAttempts([]);
           }
-        }
 
-        // Fetch candidate real submissions and bookmarks from Firestore
-        let userAttempts: TestAttempt[] = [];
-        try {
-          userAttempts = await fetchCandidateSubmissions(user.uid);
-          if (userAttempts && userAttempts.length > 0) {
-            setCompletedAttempts(userAttempts);
+          try {
+            const userBookmarks = await fetchRealBookmarks(user.uid);
+            if (userBookmarks && userBookmarks.length > 0) {
+              setBookmarks(userBookmarks);
+            } else {
+              setBookmarks([]);
+            }
+          } catch (e) {
+            console.warn('Bookmarks fetch error:', e);
           }
-        } catch (e) {
-          console.warn('Submissions fetch error:', e);
-        }
 
-        try {
-          const userBookmarks = await fetchRealBookmarks(user.uid);
-          if (userBookmarks && userBookmarks.length > 0) {
-            setBookmarks(userBookmarks);
-          }
-        } catch (e) {
-          console.warn('Bookmarks fetch error:', e);
-        }
-
-        // Calculate verified candidate statistics strictly from real attempts
-        const totalAttempts = userAttempts ? userAttempts.length : 0;
-        const totalSolved = userAttempts
-          ? userAttempts.reduce((acc, a) => acc + (a.correctCount + a.wrongCount), 0)
-          : 0;
-        const avgAcc =
-          totalAttempts > 0
-            ? Math.round((userAttempts.reduce((acc, a) => acc + a.accuracy, 0) / totalAttempts) * 10) / 10
+          const totalAttempts = userAttempts ? userAttempts.length : 0;
+          const totalSolved = userAttempts
+            ? userAttempts.reduce((acc, a) => acc + (a.correctCount + a.wrongCount), 0)
             : 0;
-        const pts = userAttempts
-          ? userAttempts.reduce((acc, a) => acc + Math.round(a.obtainedMarks * 10), 0)
-          : 0;
-        const recentActs = userAttempts
-          ? userAttempts.slice(0, 5).map(att => ({
-              testName: att.testTitle,
-              date: new Date(att.submittedAt).toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric'
-              }),
-              score: att.obtainedMarks,
-              maxScore: att.maxMarks,
-              accuracy: att.accuracy
-            }))
-          : [];
+          const avgAcc =
+            totalAttempts > 0
+              ? Math.round((userAttempts.reduce((acc, a) => acc + a.accuracy, 0) / totalAttempts) * 10) / 10
+              : 0;
+          const pts = userAttempts
+            ? userAttempts.reduce((acc, a) => acc + Math.round(a.obtainedMarks * 10), 0)
+            : 0;
+          const recentActs = userAttempts
+            ? userAttempts.slice(0, 5).map(att => ({
+                testName: att.testTitle,
+                date: new Date(att.submittedAt).toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric'
+                }),
+                score: att.obtainedMarks,
+                maxScore: att.maxMarks,
+                accuracy: att.accuracy
+              }))
+            : [];
 
-        setStudentProfile({
-          uid: user.uid,
-          name: user.displayName || 'Candidate Aspirant',
-          email: user.email || '',
-          photoURL:
-            user.photoURL ||
-            `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(user.displayName || user.uid)}`,
-          rankTitle: totalAttempts > 0 ? 'Verified Aspirant' : 'Candidate Aspirant',
-          totalTestsAttempted: totalAttempts,
-          totalQuestionsSolved: totalSolved,
-          averageAccuracy: avgAcc,
-          lifetimePoints: pts,
-          currentDailyPoints: 0,
-          currentWeeklyPoints: 0,
-          currentGlobalRank: 0,
-          streakDays: totalAttempts > 0 ? 1 : 0,
-          recentTestActivity: recentActs
-        });
+          setStudentProfile({
+            uid: user.uid,
+            name: user.displayName || 'Candidate Aspirant',
+            email: user.email || '',
+            photoURL:
+              user.photoURL ||
+              `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(user.displayName || user.uid)}`,
+            rankTitle: totalAttempts > 0 ? 'Verified Aspirant' : 'Candidate Aspirant',
+            totalTestsAttempted: totalAttempts,
+            totalQuestionsSolved: totalSolved,
+            averageAccuracy: avgAcc,
+            lifetimePoints: pts,
+            currentDailyPoints: 0,
+            currentWeeklyPoints: 0,
+            currentGlobalRank: 0,
+            streakDays: totalAttempts > 0 ? 1 : 0,
+            recentTestActivity: recentActs
+          });
+        } finally {
+          setAuthLoading(false);
+        }
       } else {
+        setVerifiedRole(null);
+        setAccountStatus(null);
         setTeacherStatus(null);
+        setTeacherRejectionReason(null);
+        setCurrentRoleState('student');
+        setCompletedAttempts([]);
+        setBookmarks(INITIAL_BOOKMARKS);
         setStudentProfile(INITIAL_STUDENT_PROFILE);
+        setIsRoleSelectionModalOpen(false);
+        setAuthLoading(false);
       }
     });
-    return () => unsubscribe();
+    return () => {
+      cleanupDocListeners();
+      unsubscribeAuth();
+    };
   }, []);
 
   const loginWithGoogle = async () => {
-    try {
-      const user = await signInWithGoogle();
-      if (user?.email === 'sandeepgarg6375494692@gmail.com') {
-        setCurrentRole('admin');
-        setActiveSection('admin-dashboard');
-      }
-    } catch (error) {
-      console.error('Google sign-in error:', error);
+    const user = await signInWithGoogle();
+    if (user?.email === 'sandeepgarg6375494692@gmail.com') {
+      setVerifiedRole('admin');
+      setCurrentRoleState('admin');
+      setActiveSection('admin-dashboard');
     }
   };
 
@@ -413,8 +733,11 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       await logOutUser();
       setFirebaseUser(null);
+      setVerifiedRole(null);
       setTeacherStatus(null);
-      setCurrentRole('student');
+      setCurrentRoleState('student');
+      setCompletedAttempts([]);
+      setIsRoleSelectionModalOpen(false);
       setActiveSection('home');
     } catch (error) {
       console.error('Logout error:', error);
@@ -449,13 +772,15 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, [activeExam.status, activeExam.serverDeadlineMs, activeExam.remainingSeconds]);
 
-  // One Attempt Policy Check
+  // One Attempt Policy Check (scoped to current candidate UID)
   const hasAttempted = (testId: string) => {
-    return completedAttempts.some(a => a.testId === testId);
+    const uid = auth.currentUser ? auth.currentUser.uid : studentProfile.uid;
+    return completedAttempts.some(a => a.testId === testId && a.studentId === uid);
   };
 
   const getAttemptForTest = (testId: string) => {
-    return completedAttempts.find(a => a.testId === testId);
+    const uid = auth.currentUser ? auth.currentUser.uid : studentProfile.uid;
+    return completedAttempts.find(a => a.testId === testId && a.studentId === uid);
   };
 
   const startTestInstructions = async (test: Test) => {
@@ -763,9 +1088,14 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Teacher / Admin Actions
   const addQuestion = (q: Omit<Question, 'id'>) => {
+    const authorUid = auth.currentUser?.uid || 'Faculty Educator';
+    const authorName = firebaseUser?.displayName || (currentRole === 'admin' ? 'Administrator' : 'Faculty Educator');
+
     const newQ: Question = {
       ...q,
-      id: `q-${Date.now()}`
+      id: `q-${Date.now()}`,
+      createdBy: q.createdBy || authorUid,
+      createdByName: q.createdByName || authorName
     };
     setQuestions(prev => [newQ, ...prev]);
     if (auth.currentUser) {
@@ -786,6 +1116,9 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     let added = 0;
     let duplicates = 0;
     let failed = 0;
+
+    const authorUid = auth.currentUser?.uid || 'Faculty Educator';
+    const authorName = firebaseUser?.displayName || (currentRole === 'admin' ? 'Administrator' : 'Faculty Educator');
 
     const currentStatements = new Set(questions.map(q => q.statement.trim().toLowerCase()));
     const validQuestions: Question[] = [];
@@ -811,7 +1144,9 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       currentStatements.add(q.statement.trim().toLowerCase());
       const item: Question = {
         ...q,
-        id: `q-bulk-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+        id: `q-bulk-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+        createdBy: q.createdBy || authorUid,
+        createdByName: q.createdByName || authorName
       };
       validQuestions.push(item);
       added++;
@@ -897,18 +1232,34 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
-  const createTest = (testData: Omit<Test, 'id' | 'createdAt' | 'status'>) => {
-    const creatorName = firebaseUser?.displayName || (currentRole === 'admin' ? 'Administrator' : 'Educator');
+  const createTest = (testData: Omit<Test, 'id' | 'createdAt' | 'status'> & { status?: TestStatus }) => {
+    if (verifiedRole !== 'teacher' && verifiedRole !== 'admin') {
+      console.warn('Unauthorized attempt to create test by non-educator role.');
+      return;
+    }
+    const creatorName = firebaseUser?.displayName || (verifiedRole === 'admin' ? 'Administrator' : 'Educator');
     const creatorUid = auth.currentUser?.uid || 'Faculty Educator';
-    const isSysAdmin = currentRole === 'admin' || auth.currentUser?.email === 'sandeepgarg6375494692@gmail.com';
+    const isSysAdmin = verifiedRole === 'admin' || auth.currentUser?.email === 'sandeepgarg6375494692@gmail.com';
+
+    // Mandatory Rule: Teacher submissions MUST ALWAYS start in 'Pending Approval' with 'Pending' approvalStatus.
+    // Only an Admin creating a test directly in the Admin Panel can publish directly if specifically requested.
+    const willPublishDirectly = isSysAdmin && testData.status === 'Published';
+    const initialStatus: TestStatus = willPublishDirectly ? 'Published' : 'Pending Approval';
+    const initialApprovalStatus: 'Pending' | 'Approved' = willPublishDirectly ? 'Approved' : 'Pending';
+    const nowIso = new Date().toISOString();
 
     const newTest: Test = {
       ...testData,
       id: `test-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      status: isSysAdmin ? 'Published' : 'Pending Approval',
+      createdAt: nowIso,
+      submittedAt: nowIso,
+      status: initialStatus,
+      approvalStatus: initialApprovalStatus,
       createdBy: creatorUid,
-      teacherName: creatorName
+      teacherName: creatorName,
+      approvedBy: willPublishDirectly ? creatorUid : undefined,
+      approvedByName: willPublishDirectly ? creatorName : undefined,
+      approvedAt: willPublishDirectly ? nowIso : undefined
     };
     setTests(prev => [newTest, ...prev]);
     if (auth.currentUser) {
@@ -919,22 +1270,50 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addAuditLog({
       actor: getActorName(),
       actorRole: isSysAdmin ? 'Admin' : 'Teacher',
-      action: isSysAdmin ? 'Created & Published Test' : 'Created Test Draft',
+      action: willPublishDirectly ? 'Created & Published Test' : 'Submitted Assessment for Admin Approval',
       target: testData.title,
       status: 'Success'
     });
   };
 
   const approveTest = (testId: string) => {
-    setTests(prev => prev.map(t => (t.id === testId ? { ...t, status: 'Published' as const } : t)));
+    const isSysAdmin = verifiedRole === 'admin' || auth.currentUser?.email === 'sandeepgarg6375494692@gmail.com';
+    if (!isSysAdmin) {
+      console.warn('Access Denied: Only authenticated administrators can approve and publish assessments.');
+      return;
+    }
+    const adminUid = auth.currentUser?.uid || 'admin-root';
+    const adminName = firebaseUser?.displayName || 'Institutional Administrator';
+    const approvedTimestamp = new Date().toISOString();
+
+    setTests(prev =>
+      prev.map(t =>
+        t.id === testId
+          ? {
+              ...t,
+              status: 'Published' as const,
+              approvalStatus: 'Approved' as const,
+              approvedBy: adminUid,
+              approvedByName: adminName,
+              approvedAt: approvedTimestamp
+            }
+          : t
+      )
+    );
     if (auth.currentUser) {
-      updateDoc(doc(db, 'tests', testId), { status: 'Published' }).catch(err => {
+      updateDoc(doc(db, 'tests', testId), {
+        status: 'Published',
+        approvalStatus: 'Approved',
+        approvedBy: adminUid,
+        approvedByName: adminName,
+        approvedAt: approvedTimestamp
+      }).catch(err => {
         handleFirestoreError(err, OperationType.UPDATE, 'tests');
       });
     }
     const testTitle = tests.find(t => t.id === testId)?.title || testId;
     addAuditLog({
-      actor: getActorName('Admin'),
+      actor: adminName,
       actorRole: 'Admin',
       action: 'Approved & Published Assessment',
       target: testTitle,
@@ -943,17 +1322,48 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const rejectTest = (testId: string, reason?: string) => {
-    setTests(prev => prev.map(t => (t.id === testId ? { ...t, status: 'Draft' as const } : t)));
+    const isSysAdmin = verifiedRole === 'admin' || auth.currentUser?.email === 'sandeepgarg6375494692@gmail.com';
+    if (!isSysAdmin) {
+      console.warn('Access Denied: Only authenticated administrators can moderate assessments.');
+      return;
+    }
+    const adminUid = auth.currentUser?.uid || 'admin-root';
+    const adminName = firebaseUser?.displayName || 'Institutional Administrator';
+    const rejectedTimestamp = new Date().toISOString();
+    const finalReason = reason?.trim() || 'Did not meet institutional quality standards.';
+
+    setTests(prev =>
+      prev.map(t =>
+        t.id === testId
+          ? {
+              ...t,
+              status: 'Rejected' as const,
+              approvalStatus: 'Rejected' as const,
+              rejectedBy: adminUid,
+              rejectedByName: adminName,
+              rejectedAt: rejectedTimestamp,
+              rejectionReason: finalReason
+            }
+          : t
+      )
+    );
     if (auth.currentUser) {
-      updateDoc(doc(db, 'tests', testId), { status: 'Draft' }).catch(err => {
+      updateDoc(doc(db, 'tests', testId), {
+        status: 'Rejected',
+        approvalStatus: 'Rejected',
+        rejectedBy: adminUid,
+        rejectedByName: adminName,
+        rejectedAt: rejectedTimestamp,
+        rejectionReason: finalReason
+      }).catch(err => {
         handleFirestoreError(err, OperationType.UPDATE, 'tests');
       });
     }
     const testTitle = tests.find(t => t.id === testId)?.title || testId;
     addAuditLog({
-      actor: getActorName('Admin'),
+      actor: adminName,
       actorRole: 'Admin',
-      action: `Rejected Assessment: ${reason || 'Changes Requested'}`,
+      action: `Rejected Assessment: ${finalReason}`,
       target: testTitle,
       status: 'Warning'
     });
@@ -1020,7 +1430,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const currentUserUid = auth.currentUser?.uid;
     const isOwner = currentUserUid && existingTest.createdBy === currentUserUid;
-    const isSysAdmin = currentRole === 'admin' || auth.currentUser?.email === 'sandeepgarg6375494692@gmail.com';
+    const isSysAdmin = verifiedRole === 'admin' || auth.currentUser?.email === 'sandeepgarg6375494692@gmail.com';
 
     if (!isOwner && !isSysAdmin) {
       throw new Error('Unauthorized: You can only edit tests you created.');
@@ -1028,14 +1438,15 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // Critical security: If a teacher modifies a test, preserve createdBy UID.
     // If test was already 'Published', modifying it resets status to 'Pending Approval' for moderation.
-    let newStatus = updatedData.status || existingTest.status;
-    if (!isSysAdmin && existingTest.status === 'Published') {
-      newStatus = 'Pending Approval';
-    }
+    let newStatus = isSysAdmin ? (updatedData.status || existingTest.status) : 'Pending Approval';
+    let newApprovalStatus = isSysAdmin
+      ? (updatedData.approvalStatus || existingTest.approvalStatus)
+      : 'Pending';
 
     const sanitized: Partial<Test> = {
       ...updatedData,
       status: newStatus,
+      approvalStatus: newApprovalStatus,
       createdBy: existingTest.createdBy // Protected: ownership cannot be transferred!
     };
 
@@ -1062,7 +1473,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const currentUserUid = auth.currentUser?.uid;
     const isOwner = currentUserUid && existingTest.createdBy === currentUserUid;
-    const isSysAdmin = currentRole === 'admin' || auth.currentUser?.email === 'sandeepgarg6375494692@gmail.com';
+    const isSysAdmin = verifiedRole === 'admin' || auth.currentUser?.email === 'sandeepgarg6375494692@gmail.com';
 
     if (!isOwner && !isSysAdmin) {
       throw new Error('Unauthorized: You can only delete tests you created.');
@@ -1089,43 +1500,86 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
-  const promoteUserToAdmin = async (targetUid: string) => {
-    if (auth.currentUser?.email !== 'sandeepgarg6375494692@gmail.com') {
-      throw new Error('Unauthorized: Only the verified platform owner (sandeepgarg6375494692@gmail.com) can authorize Administrators.');
+  const refreshAdminDirectoryData = async () => {
+    if (verifiedRole !== 'admin' || accountStatus === 'Suspended') return;
+    const [realUsers, realTeachers, realStudents, realLogs, realNotifs, authMeta] = await Promise.all([
+      fetchRealUsers(),
+      fetchRealTeachers(),
+      fetchRealStudents(),
+      fetchRealAuditLogs(),
+      fetchRealNotifications(),
+      apiFetchAuthMetadata().catch(() => ({ adminSdkConfigured: false, metadata: {} }))
+    ]);
+    setAllUsers(realUsers || []);
+    setTeachers(realTeachers || []);
+    setAllStudents(realStudents || []);
+    setAuditLogs(realLogs || []);
+    if (realNotifs) setNotifications(realNotifs);
+    setAdminSdkConfigured(authMeta.adminSdkConfigured);
+    setAuthMetadataMap(authMeta.metadata || {});
+  };
+
+  const changeUserRoleViaBackend = async (params: {
+    targetUid: string;
+    newRole: UserRole;
+    actionId?: RoleActionId;
+    reason?: string;
+    confirmAdminPrivilegeChange?: boolean;
+  }) => {
+    const res = await apiChangeUserRole(params);
+    await refreshAdminDirectoryData();
+    if (auth.currentUser?.uid === params.targetUid) {
+      await auth.currentUser.getIdToken(true);
     }
-    await setDoc(doc(db, 'users', targetUid), {
-      role: 'admin',
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
+    return { customClaimsSynced: res.customClaimsSynced, auditLog: res.auditLog };
+  };
 
-    setAllUsers(prev => prev.map(u => u.uid === targetUid ? { ...u, role: 'admin' } : u));
+  const changeUserStatusViaBackend = async (params: {
+    targetUid: string;
+    newStatus: 'Active' | 'Suspended';
+    reason?: string;
+  }) => {
+    const res = await apiChangeUserStatus(params);
+    await refreshAdminDirectoryData();
+    return { customClaimsSynced: res.customClaimsSynced, auditLog: res.auditLog };
+  };
 
-    addAuditLog({
-      actor: 'Sandeep Garg (Root Owner)',
-      actorRole: 'Admin',
-      action: `Granted Administrator Privileges for UID ${targetUid}`,
-      target: `UID: ${targetUid}`,
-      status: 'Success'
+  const reviewTeacherRequestViaBackend = async (params: {
+    targetUid: string;
+    decision: 'approve_teacher' | 'reject' | 'assign_student' | 'assign_admin';
+    reason?: string;
+    confirmAdminPrivilegeChange?: boolean;
+  }) => {
+    const res = await apiReviewTeacherRequest(params);
+    await refreshAdminDirectoryData();
+    return { customClaimsSynced: res.customClaimsSynced, auditLog: res.auditLog };
+  };
+
+  const deleteUserAccountViaBackend = async (params: {
+    targetUid: string;
+    confirmDelete: boolean;
+    reason?: string;
+  }) => {
+    const res = await apiDeleteUserAccount(params);
+    await refreshAdminDirectoryData();
+    return { auditLog: res.auditLog };
+  };
+
+  const promoteUserToAdmin = async (targetUid: string) => {
+    await changeUserRoleViaBackend({
+      targetUid,
+      newRole: 'admin',
+      actionId: 'make_admin',
+      confirmAdminPrivilegeChange: true
     });
   };
 
   const revokeAdminRole = async (targetUid: string, fallbackRole: 'student' | 'teacher' = 'student') => {
-    if (auth.currentUser?.email !== 'sandeepgarg6375494692@gmail.com') {
-      throw new Error('Unauthorized: Only the verified platform owner can revoke Administrator privileges.');
-    }
-    await setDoc(doc(db, 'users', targetUid), {
-      role: fallbackRole,
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-
-    setAllUsers(prev => prev.map(u => u.uid === targetUid ? { ...u, role: fallbackRole } : u));
-
-    addAuditLog({
-      actor: 'Sandeep Garg (Root Owner)',
-      actorRole: 'Admin',
-      action: `Revoked Admin role for UID ${targetUid} to ${fallbackRole}`,
-      target: `UID: ${targetUid}`,
-      status: 'Notice'
+    await changeUserRoleViaBackend({
+      targetUid,
+      newRole: fallbackRole,
+      actionId: fallbackRole === 'teacher' ? 'admin_to_teacher' : 'remove_admin',
+      confirmAdminPrivilegeChange: true
     });
   };
 
@@ -1135,33 +1589,57 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   ) => {
     const user = auth.currentUser;
     if (!user) throw new Error('No authenticated user session found.');
+    if (role !== 'student' && role !== 'teacher') {
+      throw new Error('Only Student or Request Teacher Access may be selected during onboarding.');
+    }
 
     const nowIso = new Date().toISOString();
-    const isOwner = user.email === 'sandeepgarg6375494692@gmail.com';
-    const finalRole: UserRole = isOwner ? 'admin' : role;
-    const approvalStatus = finalRole === 'teacher' ? 'Pending' : 'None';
+    const isOwner = user.email === 'sandeepgarg6375494692@gmail.com' && user.emailVerified;
+
+    // Preserve any existing verified role & createdAt (Part 10 safe protection)
+    const existingSnap = await getDoc(doc(db, 'users', user.uid));
+    const existingData = existingSnap.exists() ? existingSnap.data() : null;
+    if (existingData?.role === 'admin' || existingData?.role === 'teacher' || existingData?.role === 'student') {
+      const preservedRole = existingData.role as UserRole;
+      setVerifiedRole(preservedRole);
+      setCurrentRoleState(preservedRole);
+      setIsRoleSelectionModalOpen(false);
+      setActiveSection(preservedRole === 'admin' ? 'admin-dashboard' : 'student-dashboard');
+      return;
+    }
+
+    // PART 1: Selecting Teacher MUST NOT automatically grant the Teacher role!
+    // Assign 'student' role and mark teacherApprovalStatus as 'Pending' until Admin approves.
+    const finalRole: UserRole = isOwner ? 'admin' : 'student';
+    const isTeacherRequest = !isOwner && role === 'teacher';
+    const approvalStatus = isTeacherRequest ? 'Pending' : 'None';
 
     const userData: UserAccount = {
       uid: user.uid,
       id: user.uid,
-      name: user.displayName || (finalRole === 'teacher' ? 'Faculty Educator' : 'Candidate Aspirant'),
-      displayName: user.displayName || (finalRole === 'teacher' ? 'Faculty Educator' : 'Candidate Aspirant'),
+      name: user.displayName || existingData?.name || (isTeacherRequest ? 'Teacher Applicant' : 'Candidate Aspirant'),
+      displayName: user.displayName || existingData?.displayName || (isTeacherRequest ? 'Teacher Applicant' : 'Candidate Aspirant'),
       email: user.email || '',
-      photoURL: user.photoURL || '',
+      photoURL: user.photoURL || existingData?.photoURL || '',
       role: finalRole,
+      requestedRole: isOwner ? undefined : role,
       accountStatus: 'Active',
       teacherApprovalStatus: approvalStatus,
-      createdAt: nowIso,
+      qualification: isTeacherRequest ? (details?.qualification?.trim() || 'Academic Faculty') : undefined,
+      specialization: isTeacherRequest ? (details?.specialization?.trim() || 'General Studies & CSAT') : undefined,
+      appliedAt: isTeacherRequest ? nowIso : undefined,
+      lastLoginAt: nowIso,
+      createdAt: existingData?.createdAt || nowIso,
       updatedAt: nowIso
     };
 
-    // 1. Save to users/{uid}
+    // 1. Save to users/{uid} safely merging any pre-existing metadata
     await setDoc(doc(db, 'users', user.uid), userData, { merge: true });
 
-    // 2. Initialize studentProfiles/{uid} for BOTH student and teacher (enables Part 4: Teacher can use student panel!)
+    // 2. Initialize studentProfiles/{uid} if absent
     await setDoc(doc(db, 'studentProfiles', user.uid), {
       uid: user.uid,
-      rankTitle: finalRole === 'teacher' ? 'Educator Aspirant' : 'Academy Aspirant',
+      rankTitle: isTeacherRequest ? 'Teacher Applicant (Student Access)' : 'Academy Aspirant',
       totalTestsAttempted: 0,
       totalQuestionsSolved: 0,
       averageAccuracy: 0,
@@ -1172,97 +1650,56 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       streakDays: 0
     }, { merge: true });
 
-    // 3. If teacher, create teacherProfiles/{uid} with Pending status
-    if (finalRole === 'teacher') {
+    // 3. If requesting Teacher access, create teacherProfiles/{uid} with Pending status
+    if (isTeacherRequest) {
       await setDoc(doc(db, 'teacherProfiles', user.uid), {
         id: user.uid,
         name: userData.name,
         email: userData.email,
+        photoURL: userData.photoURL || '',
         qualification: details?.qualification?.trim() || 'Academic Faculty',
         specialization: details?.specialization?.trim() || 'General Studies & CSAT',
         status: 'Pending',
         testsCreated: 0,
         joinedDate: new Date().toLocaleDateString('en-GB')
-      });
+      }, { merge: true });
       setTeacherStatus('Pending');
     }
 
-    setCurrentRole(finalRole);
+    setVerifiedRole(finalRole);
+    setCurrentRoleState(finalRole);
+    setAccountStatus('Active');
     setIsRoleSelectionModalOpen(false);
 
-    // 4. Role-based Navigation Redirection
     if (finalRole === 'admin') {
       setActiveSection('admin-dashboard');
-    } else if (finalRole === 'teacher') {
-      setActiveSection('teacher-pending');
     } else {
       setActiveSection('student-dashboard');
     }
   };
 
-  // Admin Specific Controls
-  const updateStudentStatus = (studentId: string, status: 'Active' | 'Suspended') => {
-    setAllStudents(prev =>
-      prev.map(s => (s.id === studentId ? { ...s, status } : s))
-    );
-    addAuditLog({
-      actor: getActorName('Admin'),
-      actorRole: 'Admin',
-      action: `Changed Student Status to ${status}`,
-      target: `Student ID: ${studentId}`,
-      status: status === 'Active' ? 'Success' : 'Warning'
-    });
+  // Admin Specific Controls (all backed by secure server endpoints)
+  const updateStudentStatus = async (studentId: string, status: 'Active' | 'Suspended') => {
+    if (verifiedRole !== 'admin') return;
+    await changeUserStatusViaBackend({ targetUid: studentId, newStatus: status });
   };
 
-  const approveTeacher = (teacherId: string) => {
-    setTeachers(prev =>
-      prev.map(tch => (tch.id === teacherId ? { ...tch, status: 'Approved' } : tch))
-    );
-    if (auth.currentUser) {
-      setDoc(doc(db, 'teacherProfiles', teacherId), { status: 'Approved' }, { merge: true }).catch(err => {
-        handleFirestoreError(err, OperationType.UPDATE, 'teacherProfiles');
-      });
-    }
-    addAuditLog({
-      actor: getActorName('Admin'),
-      actorRole: 'Admin',
-      action: 'Approved Educator Application',
-      target: `Teacher ID: ${teacherId}`,
-      status: 'Success'
-    });
+  const approveTeacher = async (teacherId: string) => {
+    if (verifiedRole !== 'admin') return;
+    await reviewTeacherRequestViaBackend({ targetUid: teacherId, decision: 'approve_teacher' });
   };
 
-  const rejectTeacher = (teacherId: string) => {
-    setTeachers(prev => prev.filter(tch => tch.id !== teacherId));
-    if (auth.currentUser) {
-      setDoc(doc(db, 'teacherProfiles', teacherId), { status: 'Suspended' }, { merge: true }).catch(err => {
-        handleFirestoreError(err, OperationType.UPDATE, 'teacherProfiles');
-      });
-    }
-    addAuditLog({
-      actor: getActorName('Admin'),
-      actorRole: 'Admin',
-      action: 'Rejected & Removed Educator Application',
-      target: `Teacher ID: ${teacherId}`,
-      status: 'Warning'
-    });
+  const rejectTeacher = async (teacherId: string, reason = 'Application declined by Admin review.') => {
+    if (verifiedRole !== 'admin') return;
+    await reviewTeacherRequestViaBackend({ targetUid: teacherId, decision: 'reject', reason });
   };
 
-  const suspendTeacher = (teacherId: string) => {
-    setTeachers(prev =>
-      prev.map(tch => (tch.id === teacherId ? { ...tch, status: 'Suspended' } : tch))
-    );
-    if (auth.currentUser) {
-      setDoc(doc(db, 'teacherProfiles', teacherId), { status: 'Suspended' }, { merge: true }).catch(err => {
-        handleFirestoreError(err, OperationType.UPDATE, 'teacherProfiles');
-      });
-    }
-    addAuditLog({
-      actor: getActorName('Admin'),
-      actorRole: 'Admin',
-      action: 'Suspended Educator Privileges',
-      target: `Teacher ID: ${teacherId}`,
-      status: 'Warning'
+  const suspendTeacher = async (teacherId: string) => {
+    if (verifiedRole !== 'admin') return;
+    await changeUserStatusViaBackend({
+      targetUid: teacherId,
+      newStatus: 'Suspended',
+      reason: 'Suspended by Admin'
     });
   };
 
@@ -1383,6 +1820,8 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <QuizContext.Provider
       value={{
         currentRole,
+        verifiedRole,
+        authLoading,
         setCurrentRole,
         activeSection,
         setActiveSection,
@@ -1437,6 +1876,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         deleteTest,
         updateTest,
         allUsers,
+        adminSdkConfigured,
+        authMetadataMap,
+        refreshAdminDirectoryData,
+        changeUserRoleViaBackend,
+        changeUserStatusViaBackend,
+        reviewTeacherRequestViaBackend,
+        deleteUserAccountViaBackend,
         promoteUserToAdmin,
         revokeAdminRole,
         isRoleSelectionModalOpen,
@@ -1456,7 +1902,9 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updateSubject,
         resetLeaderboard,
         firebaseUser,
+        accountStatus,
         teacherStatus,
+        teacherRejectionReason,
         isAuthModalOpen,
         setIsAuthModalOpen,
         authModalMode,

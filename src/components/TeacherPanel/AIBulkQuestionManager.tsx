@@ -31,9 +31,14 @@ import {
 } from '../../lib/aiQuestionService';
 
 export const AIBulkQuestionManager: React.FC = () => {
-  const { tests, addBulkQuestions, addQuestionsToTest } = useQuiz();
+  const { tests, addBulkQuestions, addQuestionsToTest, firebaseUser } = useQuiz();
 
   const [activeMethod, setActiveMethod] = useState<'ai' | 'file' | 'paste'>('ai');
+
+  // Teacher-scoped unpublished target tests
+  const myTargetTests = tests.filter(
+    t => t.createdBy === firebaseUser?.uid && t.status !== 'Published'
+  );
 
   // AI Form State
   const [aiSubject, setAiSubject] = useState('Indian Polity & Governance');
@@ -1052,27 +1057,36 @@ Explanation: New Delhi was inaugurated as capital in 1931.`}
             </p>
 
             <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
-              {tests.map(t => (
-                <div
-                  key={t.id}
-                  onClick={() => setSelectedTargetTestId(t.id)}
-                  className={`p-3.5 rounded-2xl border text-left cursor-pointer transition flex items-center justify-between ${
-                    selectedTargetTestId === t.id
-                      ? 'border-[#FF8C32] bg-[#FF8C32]/15 text-white font-semibold'
-                      : 'border-white/10 bg-white/5 hover:border-white/20 text-slate-200'
-                  }`}
-                >
-                  <div>
-                    <div className="font-bold text-sm text-white">{t.title}</div>
-                    <div className="text-[11px] text-slate-400">
-                      {t.subject} • {t.questions.length} Questions ({t.status})
-                    </div>
-                  </div>
-                  {selectedTargetTestId === t.id && (
-                    <Check className="w-5 h-5 text-[#FF8C32] shrink-0" />
-                  )}
+              {myTargetTests.length === 0 ? (
+                <div className="p-5 text-center text-xs text-slate-400 bg-white/5 rounded-2xl border border-white/5 space-y-1">
+                  <p className="font-semibold text-slate-300">No unpublished tests available</p>
+                  <p className="text-[11px] text-slate-500">
+                    You do not have any pending or draft assessments. Create an assessment first using the Create Assessment Form, or save these questions directly to your Question Bank.
+                  </p>
                 </div>
-              ))}
+              ) : (
+                myTargetTests.map(t => (
+                  <div
+                    key={t.id}
+                    onClick={() => setSelectedTargetTestId(t.id)}
+                    className={`p-3.5 rounded-2xl border text-left cursor-pointer transition flex items-center justify-between ${
+                      selectedTargetTestId === t.id
+                        ? 'border-[#FF8C32] bg-[#FF8C32]/15 text-white font-semibold'
+                        : 'border-white/10 bg-white/5 hover:border-white/20 text-slate-200'
+                    }`}
+                  >
+                    <div>
+                      <div className="font-bold text-sm text-white">{t.title}</div>
+                      <div className="text-[11px] text-slate-400">
+                        {t.subject} • {t.questions.length} Questions ({t.status})
+                      </div>
+                    </div>
+                    {selectedTargetTestId === t.id && (
+                      <Check className="w-5 h-5 text-[#FF8C32] shrink-0" />
+                    )}
+                  </div>
+                ))
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2 border-t border-white/10">

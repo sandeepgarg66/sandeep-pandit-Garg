@@ -4,15 +4,12 @@ import {
   ShieldCheck,
   GraduationCap,
   LogOut,
-  ArrowRight,
-  Flame,
-  CheckCircle2,
-  FileText
+  CheckCircle2
 } from 'lucide-react';
 import { useQuiz } from '../../context/QuizContext';
 
 export const TeacherPendingScreen: React.FC = () => {
-  const { logout, setActiveSection, currentRole, firebaseUser } = useQuiz();
+  const { logout, setActiveSection, firebaseUser } = useQuiz();
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center p-4">
@@ -26,13 +23,13 @@ export const TeacherPendingScreen: React.FC = () => {
 
         <div className="space-y-2">
           <span className="text-xs uppercase font-extrabold tracking-widest text-amber-300 bg-amber-500/20 px-3 py-1 rounded-full border border-amber-500/30">
-            Jonin Educator Verification
+            Admin Approval Required
           </span>
           <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-white">
-            Teacher Application Pending Approval
+            Your Teacher Access Request is Pending Admin Approval.
           </h2>
           <p className="text-xs sm:text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
-            Welcome to <span className="text-[#FF8C32] font-semibold">Sanskar-X-NarutoQuiz</span>. Your educator profile has been submitted and is currently awaiting verification by the Hokage Administration.
+            Welcome to <span className="text-[#FF8C32] font-semibold">Sanskar-X-NarutoQuiz</span>. Until an Administrator approves your Teacher application, your account remains on standard Student access and Teacher Panel access is restricted.
           </p>
         </div>
 
@@ -40,38 +37,37 @@ export const TeacherPendingScreen: React.FC = () => {
         <div className="p-4 rounded-2xl bg-white/5 border border-white/5 text-left text-xs space-y-2.5">
           <div className="font-bold text-white flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            Institutional Quality Standard:
+            Institutional Role Verification Standard:
           </div>
           <div className="flex items-start gap-2 text-slate-300 text-[11px]">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-            <span>Credentials and academic qualifications are audited before test-authoring rights are granted.</span>
+            <span>Credentials and academic qualifications are reviewed by Admin before assigning the Teacher role.</span>
           </div>
           <div className="flex items-start gap-2 text-slate-300 text-[11px]">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-            <span>5-option OMR question formatting guidelines are enforced on all authored questions.</span>
+            <span>Student Panel access, mock tests, and 5-option OMR practice drills remain active for you right now.</span>
           </div>
           <div className="flex items-start gap-2 text-slate-300 text-[11px]">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-            <span>Once approved, you will have access to create and submit competitive mock tests.</span>
+            <span>Once approved by Admin, your Teacher Panel unlocks automatically.</span>
           </div>
         </div>
 
         {/* User Details */}
         {firebaseUser && (
           <div className="text-xs text-slate-400 font-mono">
-            Registered as: <strong className="text-white">{firebaseUser.email}</strong>
+            Signed in as: <strong className="text-white">{firebaseUser.email}</strong>
           </div>
         )}
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-          {/* Part 4: Pending Teacher can immediately use Student Panel */}
           <button
             onClick={() => setActiveSection('student-dashboard')}
             className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#EA580C] to-[#FF8C32] hover:opacity-95 text-slate-950 font-bold text-xs shadow-lg transition flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <GraduationCap className="w-4 h-4" />
-            <span>Open Student Panel (Practice & Attempt Tests)</span>
+            <span>Open Student Panel</span>
           </button>
           <button
             onClick={() => setActiveSection('home')}

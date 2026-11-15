@@ -5,6 +5,16 @@
       "description": "Authenticated user identity with assigned role and profile metadata",
       "type": "object",
       "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Full display name",
+          "maxLength": 120
+        },
         "id": {
           "type": "string",
           "description": "Firebase Auth UID of the user",
@@ -25,6 +35,58 @@
           "description": "Access control role",
           "enum": ["student", "teacher", "admin"]
         },
+        "requestedRole": {
+          "type": "string",
+          "description": "Requested role during registration (e.g. teacher)",
+          "enum": ["student", "teacher"]
+        },
+        "accountStatus": {
+          "type": "string",
+          "description": "Account active or suspended status",
+          "enum": ["Active", "Suspended"]
+        },
+        "teacherApprovalStatus": {
+          "type": "string",
+          "description": "Teacher access request status",
+          "enum": ["None", "Pending", "Approved", "Rejected", "Suspended"]
+        },
+        "qualification": {
+          "type": "string",
+          "description": "Applicant academic qualification",
+          "maxLength": 250
+        },
+        "specialization": {
+          "type": "string",
+          "description": "Applicant subject specialization",
+          "maxLength": 120
+        },
+        "appliedAt": {
+          "type": "string",
+          "description": "Teacher access request timestamp"
+        },
+        "approvedBy": {
+          "type": "string",
+          "description": "Admin UID who approved role/request",
+          "maxLength": 128
+        },
+        "approvedAt": {
+          "type": "string",
+          "description": "Approval timestamp"
+        },
+        "rejectedBy": {
+          "type": "string",
+          "description": "Admin UID who rejected teacher request",
+          "maxLength": 128
+        },
+        "rejectedAt": {
+          "type": "string",
+          "description": "Rejection timestamp"
+        },
+        "rejectionReason": {
+          "type": "string",
+          "description": "Reason for teacher request rejection",
+          "maxLength": 500
+        },
         "photoURL": {
           "type": "string",
           "description": "Avatar image URL",
@@ -33,6 +95,10 @@
         "createdAt": {
           "type": "string",
           "description": "ISO timestamp of account creation"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "description": "ISO timestamp of most recent sign-in"
         }
       },
       "required": ["id", "email", "displayName", "role"]
@@ -120,7 +186,7 @@
         "status": {
           "type": "string",
           "description": "Verification status by administration",
-          "enum": ["Approved", "Pending", "Suspended"]
+          "enum": ["Approved", "Pending", "Rejected", "Suspended"]
         },
         "testsCreated": {
           "type": "number",
@@ -129,6 +195,33 @@
         "joinedDate": {
           "type": "string",
           "description": "Registration date"
+        },
+        "appliedAt": {
+          "type": "string",
+          "description": "Application submission timestamp"
+        },
+        "approvedBy": {
+          "type": "string",
+          "description": "Admin UID who approved educator",
+          "maxLength": 128
+        },
+        "approvedAt": {
+          "type": "string",
+          "description": "Approval timestamp"
+        },
+        "rejectedBy": {
+          "type": "string",
+          "description": "Admin UID who rejected educator",
+          "maxLength": 128
+        },
+        "rejectedAt": {
+          "type": "string",
+          "description": "Rejection timestamp"
+        },
+        "rejectionReason": {
+          "type": "string",
+          "description": "Reason for rejection",
+          "maxLength": 500
         }
       },
       "required": ["id", "name", "email", "status"]
@@ -223,10 +316,47 @@
           "description": "Author display name",
           "maxLength": 120
         },
+        "approvalStatus": {
+          "type": "string",
+          "description": "Administrative moderation status",
+          "enum": ["Pending", "Approved", "Rejected"]
+        },
+        "submittedAt": {
+          "type": "string",
+          "description": "Timestamp when educator submitted assessment for approval"
+        },
         "approvedBy": {
           "type": "string",
           "description": "Admin UID who approved publication",
           "maxLength": 128
+        },
+        "approvedByName": {
+          "type": "string",
+          "description": "Admin name who approved publication",
+          "maxLength": 120
+        },
+        "approvedAt": {
+          "type": "string",
+          "description": "Approval timestamp"
+        },
+        "rejectedBy": {
+          "type": "string",
+          "description": "Admin UID who rejected submission",
+          "maxLength": 128
+        },
+        "rejectedByName": {
+          "type": "string",
+          "description": "Admin name who rejected submission",
+          "maxLength": 120
+        },
+        "rejectedAt": {
+          "type": "string",
+          "description": "Rejection timestamp"
+        },
+        "rejectionReason": {
+          "type": "string",
+          "description": "Institutional moderation reason for rejection",
+          "maxLength": 500
         },
         "createdAt": {
           "type": "string",
@@ -299,6 +429,16 @@
         "marks": {
           "type": "number",
           "description": "Marks awarded for this item"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Educator or author UID",
+          "maxLength": 128
+        },
+        "createdByName": {
+          "type": "string",
+          "description": "Educator or author display name",
+          "maxLength": 120
         }
       },
       "required": ["id", "statement", "options", "correctAnswer", "subject", "marks"]
@@ -538,6 +678,41 @@
           "type": "string",
           "description": "Client IP address",
           "maxLength": 64
+        },
+        "targetUserUid": {
+          "type": "string",
+          "description": "Target user UID for role/status audit actions",
+          "maxLength": 128
+        },
+        "previousRole": {
+          "type": "string",
+          "description": "User role before change",
+          "enum": ["student", "teacher", "admin"]
+        },
+        "newRole": {
+          "type": "string",
+          "description": "User role after change",
+          "enum": ["student", "teacher", "admin"]
+        },
+        "actionPerformed": {
+          "type": "string",
+          "description": "Normalized audit action identifier",
+          "maxLength": 200
+        },
+        "adminUid": {
+          "type": "string",
+          "description": "UID of Admin who executed the action",
+          "maxLength": 128
+        },
+        "reason": {
+          "type": "string",
+          "description": "Administrative justification or rejection reason",
+          "maxLength": 500
+        },
+        "category": {
+          "type": "string",
+          "description": "Audit entry category",
+          "enum": ["role_management", "account_status", "teacher_approval", "general"]
         }
       },
       "required": ["id", "actor", "action", "target", "status"]

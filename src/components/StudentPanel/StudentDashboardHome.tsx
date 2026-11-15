@@ -10,17 +10,69 @@ import {
   TrendingUp,
   Award,
   BookOpen,
-  Calendar
+  Calendar,
+  AlertCircle
 } from 'lucide-react';
 import { useQuiz } from '../../context/QuizContext';
 
 export const StudentDashboardHome: React.FC = () => {
-  const { studentProfile, setActiveSection, tests, startTestInstructions, hasAttempted } = useQuiz();
+  const {
+    studentProfile,
+    setActiveSection,
+    tests,
+    startTestInstructions,
+    hasAttempted,
+    verifiedRole,
+    teacherStatus,
+    teacherRejectionReason
+  } = useQuiz();
 
   const nextUnattemptedTest = tests.find(t => !hasAttempted(t.id));
 
   return (
     <div className="space-y-8 max-w-6xl">
+      {verifiedRole === 'student' && teacherStatus === 'Pending' && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 shrink-0">
+              <Clock className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-bold text-amber-200">
+                Your Teacher Access Request is Pending Admin Approval.
+              </div>
+              <p className="text-[11px] text-amber-300/80 mt-0.5">
+                Standard Student Panel access is active right now. Teacher Panel tools will unlock automatically once an Administrator approves your application.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setActiveSection('teacher-pending')}
+            className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-bold border border-amber-500/30 shrink-0 cursor-pointer transition"
+          >
+            View Request Status
+          </button>
+        </div>
+      )}
+
+      {verifiedRole === 'student' && teacherStatus === 'Rejected' && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-300 shrink-0">
+            <AlertCircle className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs sm:text-sm font-bold text-rose-200">
+              Teacher Access Request Not Approved
+            </div>
+            <p className="text-[11px] text-rose-200/80 mt-0.5">
+              {teacherRejectionReason
+                ? `Reason: ${teacherRejectionReason}`
+                : 'Your request was declined by Administration. Your Student Panel access remains active.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Welcome & Ninja Rank Banner */}
       <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-white/10 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-80 h-80 bg-[#FF8C32]/10 blur-[100px] pointer-events-none" />

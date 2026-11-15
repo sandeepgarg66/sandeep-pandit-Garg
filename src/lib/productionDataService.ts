@@ -40,6 +40,37 @@ import { AdminStudentItem } from '../context/QuizContext';
  * - bookmarks
  */
 
+export async function fetchPublishedTests(): Promise<Test[]> {
+  try {
+    const q = query(collection(db, 'tests'), where('status', '==', 'Published'));
+    const snap = await getDocs(q);
+    const tests: Test[] = [];
+    snap.forEach(d => {
+      tests.push({ id: d.id, ...d.data() } as Test);
+    });
+    return tests;
+  } catch (error) {
+    console.warn('Failed to fetch published tests from Firestore:', error);
+    return [];
+  }
+}
+
+export async function fetchTeacherTests(uid: string): Promise<Test[]> {
+  if (!uid) return [];
+  try {
+    const q = query(collection(db, 'tests'), where('createdBy', '==', uid));
+    const snap = await getDocs(q);
+    const tests: Test[] = [];
+    snap.forEach(d => {
+      tests.push({ id: d.id, ...d.data() } as Test);
+    });
+    return tests;
+  } catch (error) {
+    console.warn('Failed to fetch teacher tests from Firestore:', error);
+    return [];
+  }
+}
+
 export async function fetchRealTests(): Promise<Test[]> {
   try {
     const q = query(collection(db, 'tests'));
@@ -51,6 +82,22 @@ export async function fetchRealTests(): Promise<Test[]> {
     return tests;
   } catch (error) {
     console.warn('Failed to fetch tests from Firestore:', error);
+    return [];
+  }
+}
+
+export async function fetchTeacherQuestions(uid: string): Promise<Question[]> {
+  if (!uid) return [];
+  try {
+    const q = query(collection(db, 'questions'), where('createdBy', '==', uid));
+    const snap = await getDocs(q);
+    const questions: Question[] = [];
+    snap.forEach(d => {
+      questions.push({ id: d.id, ...d.data() } as Question);
+    });
+    return questions;
+  } catch (error) {
+    console.warn('Failed to fetch teacher questions from Firestore:', error);
     return [];
   }
 }
@@ -95,12 +142,12 @@ export async function fetchRealStudents(): Promise<AdminStudentItem[]> {
       const u = d.data();
       students.push({
         id: d.id,
-        name: u.displayName || 'Candidate',
+        name: u.displayName || u.name || 'Candidate',
         email: u.email || '',
         attempts: 0,
         points: 0,
         rank: 0,
-        status: u.status === 'Suspended' ? 'Suspended' : 'Active'
+        status: u.accountStatus === 'Suspended' || u.status === 'Suspended' ? 'Suspended' : 'Active'
       });
     });
 
@@ -288,6 +335,7 @@ export async function fetchRealUsers(): Promise<UserAccount[]> {
     const users: UserAccount[] = [];
     snap.forEach(d => {
       const u = d.data();
+      const role = u.role === 'admin' || u.role === 'teacher' || u.role === 'student' ? u.role : 'student';
       users.push({
         uid: d.id,
         id: d.id,
@@ -295,9 +343,19 @@ export async function fetchRealUsers(): Promise<UserAccount[]> {
         displayName: u.displayName || u.name || 'User',
         email: u.email || '',
         photoURL: u.photoURL || '',
-        role: u.role || 'student',
-        accountStatus: u.accountStatus || 'Active',
-        teacherApprovalStatus: u.teacherApprovalStatus || (u.role === 'teacher' ? 'Pending' : 'None'),
+        role,
+        requestedRole: u.requestedRole === 'teacher' || u.requestedRole === 'student' ? u.requestedRole : undefined,
+        accountStatus: u.accountStatus === 'Suspended' ? 'Suspended' : 'Active',
+        teacherApprovalStatus: u.teacherApprovalStatus || (role === 'teacher' ? 'Pending' : 'None'),
+        qualification: typeof u.qualification === 'string' ? u.qualification : undefined,
+        specialization: typeof u.specialization === 'string' ? u.specialization : undefined,
+        appliedAt: typeof u.appliedAt === 'string' ? u.appliedAt : undefined,
+        approvedBy: typeof u.approvedBy === 'string' ? u.approvedBy : undefined,
+        approvedAt: typeof u.approvedAt === 'string' ? u.approvedAt : undefined,
+        rejectedBy: typeof u.rejectedBy === 'string' ? u.rejectedBy : undefined,
+        rejectedAt: typeof u.rejectedAt === 'string' ? u.rejectedAt : undefined,
+        rejectionReason: typeof u.rejectionReason === 'string' ? u.rejectionReason : undefined,
+        lastLoginAt: typeof u.lastLoginAt === 'string' ? u.lastLoginAt : undefined,
         createdAt: u.createdAt || new Date().toISOString(),
         updatedAt: u.updatedAt || new Date().toISOString()
       });

@@ -6,16 +6,17 @@ import {
   CheckCircle2,
   Flame,
   Briefcase,
-  AlertCircle
+  AlertCircle,
+  LogOut
 } from 'lucide-react';
 import { useQuiz } from '../../context/QuizContext';
 
 export const RoleSelectionModal: React.FC = () => {
   const {
     isRoleSelectionModalOpen,
-    setIsRoleSelectionModalOpen,
     assignRoleToCurrentUser,
-    firebaseUser
+    firebaseUser,
+    logout
   } = useQuiz();
 
   const [selectedRole, setSelectedRole] = useState<'student' | 'teacher' | null>(null);
@@ -158,32 +159,28 @@ export const RoleSelectionModal: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-heading font-extrabold text-lg text-white">
-                    Teacher (शिक्षक / परीक्षक)
+                    Request Teacher Access (शिक्षक आवेदन)
                   </h3>
                   <p className="text-[11px] text-purple-300 font-semibold">
-                    Academic Faculty & Test Author
+                    Requires Admin Verification & Approval
                   </p>
                 </div>
                 <ul className="text-xs text-slate-300 space-y-1.5 pt-1">
                   <li className="flex items-start gap-1.5 text-[11px]">
                     <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
-                    <span>Register as Teacher</span>
+                    <span>Submit Teacher Access Request (Pending)</span>
                   </li>
                   <li className="flex items-start gap-1.5 text-[11px]">
                     <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
-                    <span>Access Teacher Dashboard after approval</span>
+                    <span>Student Panel active immediately while waiting</span>
                   </li>
                   <li className="flex items-start gap-1.5 text-[11px]">
                     <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
-                    <span>Create MCQ questions & mock tests</span>
+                    <span>Teacher Panel unlocks only after Admin approval</span>
                   </li>
                   <li className="flex items-start gap-1.5 text-[11px]">
                     <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
-                    <span>Manage & edit your authored tests</span>
-                  </li>
-                  <li className="flex items-start gap-1.5 text-[11px]">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
-                    <span>Also use all Student Panel features!</span>
+                    <span>Admin decides and assigns final verified role</span>
                   </li>
                 </ul>
               </div>
@@ -196,7 +193,7 @@ export const RoleSelectionModal: React.FC = () => {
                 }}
                 className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <span>Continue as Teacher</span>
+                <span>Request Teacher Access</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -206,8 +203,8 @@ export const RoleSelectionModal: React.FC = () => {
         {/* STEP 2: TEACHER DETAILS PROMPT */}
         {selectedRole === 'teacher' && (
           <form onSubmit={handleContinueTeacher} className="space-y-4">
-            <div className="p-3.5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-xs text-purple-200">
-              <span className="font-bold">Jonin Verification Protocol:</span> Teachers can author tests, submit assessments for review, and also access all Student Panel drills.
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200">
+              <span className="font-bold">Pending Admin Approval:</span> Selecting Teacher creates a Pending request and assigns Student Panel access until an Admin approves your application.
             </div>
 
             <div className="space-y-3">
@@ -261,12 +258,24 @@ export const RoleSelectionModal: React.FC = () => {
                 disabled={isLoading}
                 className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
-                <span>{isLoading ? 'Submitting Application...' : 'Submit & Register as Teacher'}</span>
+                <span>{isLoading ? 'Submitting Request...' : 'Submit Teacher Access Request'}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </form>
         )}
+
+        <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
+          <span>Only Student & Teacher accounts are self-registered.</span>
+          <button
+            type="button"
+            onClick={logout}
+            className="inline-flex items-center gap-1 text-slate-300 hover:text-rose-300 font-semibold cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -15,12 +15,15 @@ import {
   BarChart3,
   ShieldAlert,
   Settings,
+  UserCheck,
   X
 } from 'lucide-react';
 import { useQuiz } from '../../context/QuizContext';
+import { computeUserManagementStats } from '../../lib/roleManagementRules';
 
 export type AdminTab =
   | 'overview'
+  | 'users'
   | 'students'
   | 'teachers'
   | 'tests'
@@ -49,14 +52,16 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   isOpen,
   onClose
 }) => {
-  const { tests, teachers, notifications, firebaseUser } = useQuiz();
+  const { tests, teachers, allUsers, notifications, firebaseUser } = useQuiz();
 
   const pendingApprovalsCount = tests.filter(t => t.status === 'Pending Approval').length;
-  const pendingTeachersCount = teachers.filter(tch => tch.status === 'Pending').length;
+  const userStats = computeUserManagementStats(allUsers, teachers);
+  const pendingTeachersCount = userStats.pendingTeacherRequests;
   const activeAnnouncementsCount = notifications.filter(n => n.isActive).length;
 
   const navItems: { id: AdminTab; label: string; icon: React.ElementType; badge?: number }[] = [
     { id: 'overview', label: 'Dashboard Overview', icon: LayoutDashboard },
+    { id: 'users', label: 'User Directory & Roles', icon: UserCheck, badge: userStats.pendingTeacherRequests },
     { id: 'students', label: 'Student Roster', icon: Users },
     { id: 'teachers', label: 'Teacher Management', icon: GraduationCap, badge: pendingTeachersCount },
     { id: 'tests', label: 'Test Management', icon: FileSpreadsheet },

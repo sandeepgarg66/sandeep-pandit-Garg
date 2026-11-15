@@ -26,8 +26,18 @@ export interface UserAccount {
   email: string;
   photoURL?: string;
   role: UserRole;
+  requestedRole?: 'student' | 'teacher';
   accountStatus: 'Active' | 'Suspended';
   teacherApprovalStatus: 'None' | 'Pending' | 'Approved' | 'Rejected' | 'Suspended';
+  qualification?: string;
+  specialization?: string;
+  appliedAt?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+  lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -60,6 +70,8 @@ export interface Question {
   topic: string;
   difficulty: 'Easy' | 'Medium' | 'Hard';
   marks: number;
+  createdBy?: string;
+  createdByName?: string;
 }
 
 export interface Test {
@@ -78,9 +90,17 @@ export interface Test {
   startDate?: string;
   endDate?: string;
   status: TestStatus;
+  approvalStatus?: 'Pending' | 'Approved' | 'Rejected';
   createdBy: string;
   teacherName?: string;
   approvedBy?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  rejectedBy?: string;
+  rejectedByName?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+  submittedAt?: string;
   createdAt: string;
   questions: Question[];
 }
@@ -167,9 +187,14 @@ export interface TeacherProfile {
   photoURL: string;
   qualification: string;
   specialization: string;
-  status: 'Approved' | 'Pending' | 'Suspended';
+  status: 'Approved' | 'Pending' | 'Rejected' | 'Suspended';
   testsCreated: number;
   joinedDate: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
 }
 
 export interface AdminAuditLog {
@@ -181,6 +206,13 @@ export interface AdminAuditLog {
   target: string;
   status: 'Success' | 'Warning' | 'Notice';
   ipAddress?: string;
+  targetUserUid?: string;
+  previousRole?: string;
+  newRole?: string;
+  actionPerformed?: string;
+  adminUid?: string;
+  reason?: string;
+  category?: 'role_management' | 'account_status' | 'teacher_approval' | 'assessment' | 'system';
 }
 
 export interface NotificationAnnouncement {
