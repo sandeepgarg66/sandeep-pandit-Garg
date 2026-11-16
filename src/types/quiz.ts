@@ -212,7 +212,7 @@ export interface AdminAuditLog {
   actionPerformed?: string;
   adminUid?: string;
   reason?: string;
-  category?: 'role_management' | 'account_status' | 'teacher_approval' | 'assessment' | 'system';
+  category?: 'role_management' | 'account_status' | 'teacher_approval' | 'assessment' | 'system' | 'general';
 }
 
 export interface NotificationAnnouncement {
@@ -245,5 +245,45 @@ export interface PlatformSettings {
   featuredTestIds: string[];
   bannerAnnouncement: string;
   isBannerActive: boolean;
+  dailyResetAt?: string;
+  weeklyResetAt?: string;
+}
+
+export interface SanitizedExamQuestion {
+  id: string;
+  testId?: string;
+  statement: string;
+  statementHindi?: string;
+  imageURL?: string;
+  options: {
+    A: string;
+    B: string;
+    C: string;
+    D: string;
+  };
+  subject: string;
+  topic: string;
+  difficulty?: 'Easy' | 'Medium' | 'Hard';
+  marks: number;
+}
+
+export type ActiveExamTest = Omit<Test, 'questions'> & {
+  questions: (Question | SanitizedExamQuestion)[];
+};
+
+export interface LeaderboardEntryDoc {
+  id: string;
+  studentId: string;
+  name: string;
+  avatar: string;
+  lifetimePoints: number;
+  dailyPoints: number;
+  weeklyPoints: number;
+  lastDailyUpdatedAt?: string;
+  lastWeeklyUpdatedAt?: string;
+  testsAttempted: number;
+  totalCorrect: number;
+  totalAttemptedQuestions: number;
+  updatedAt: string;
 }
 

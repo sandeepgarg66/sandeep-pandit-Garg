@@ -13,6 +13,8 @@ import {
   executeGetAuthMetadata,
   executeReviewTeacherRequest
 } from './server/roleService.ts';
+import { executeGenerateQuestions } from './server/geminiQuestionService.ts';
+import { executeParseQuestionFile } from './server/documentImportService.ts';
 
 const PORT = Number(process.env.PORT) || 3000;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
@@ -49,6 +51,8 @@ async function authenticateRequest(req: Request) {
 
 async function startServer() {
   const app = express();
+  // Higher limit specifically for in-memory base64 file parsing route (<= 8 MB binary)
+  app.use('/api/questions/parse-file', express.json({ limit: '12mb' }));
   app.use(express.json({ limit: '1mb' }));
 
   app.get('/api/health', (_req: Request, res: Response) => {
@@ -57,6 +61,34 @@ async function startServer() {
       service: 'Sanskar-X-NarutoQuiz Auth & Role API',
       adminSdkConfigured: isAdminSdkConfigured()
     });
+  });
+
+  app.post('/api/ai/generate-questions', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { callerToken, store } = await authenticateRequest(req);
+      const result = await executeGenerateQuestions({
+        callerToken,
+        store,
+        body: req.body || {}
+      });
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/questions/parse-file', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { callerToken, store } = await authenticateRequest(req);
+      const result = await executeParseQuestionFile({
+        callerToken,
+        store,
+        body: req.body || {}
+      });
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
   });
 
   app.get('/api/admin/users/auth-metadata', async (req: Request, res: Response, next: NextFunction) => {

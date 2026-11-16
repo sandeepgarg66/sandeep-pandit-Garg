@@ -4,12 +4,9 @@ import {
   getDoc,
   getDocs,
   setDoc,
-  updateDoc,
   query,
   where,
-  orderBy,
-  limit,
-  Timestamp
+  limit
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from './firebase';
 import {
@@ -18,28 +15,18 @@ import {
   TestAttempt,
   StudentResponseKey,
   QuestionState,
-  StudentProfile
+  StudentProfile,
+  SanitizedExamQuestion,
+  ActiveExamTest,
+  PlatformSettings,
+  LeaderboardEntryDoc
 } from '../types/quiz';
 
 const ATTEMPTS_COLLECTION = 'testAttempts';
-const TESTS_COLLECTION = 'tests';
 const PROFILES_COLLECTION = 'studentProfiles';
+const LEADERBOARD_COLLECTION = 'leaderboardEntries';
 
-export interface SanitizedExamQuestion {
-  id: string;
-  statement: string;
-  statementHindi?: string;
-  imageURL?: string;
-  options: {
-    A: string;
-    B: string;
-    C: string;
-    D: string;
-  };
-  subject: string;
-  topic: string;
-  marks: number;
-}
+export type { SanitizedExamQuestion };
 
 export interface ActiveExamSession {
   testId: string;
@@ -55,11 +42,12 @@ export interface ActiveExamSession {
 
 /**
  * Strips answer keys and explanations from questions before sending to candidate examination view.
- * Security Invariant: Students must NEVER receive correctAnswer during an active examination.
+ * Security Invariant: Students must NEVER receive correctAnswer or explanation during an active examination.
  */
 export function sanitizeQuestionsForCandidate(questions: Question[]): SanitizedExamQuestion[] {
   return questions.map(q => ({
     id: q.id,
+    testId: q.testId,
     statement: q.statement,
     statementHindi: q.statementHindi,
     imageURL: q.imageURL,
@@ -71,8 +59,99 @@ export function sanitizeQuestionsForCandidate(questions: Question[]): SanitizedE
     },
     subject: q.subject,
     topic: q.topic,
+    difficulty: q.difficulty,
     marks: q.marks
   }));
+}
+
+export function sanitizeTestForCandidate(test: Test): ActiveExamTest {
+  return {
+    ...test,
+    questions: sanitizeQuestionsForCandidate(test.questions)
+  };
+}
+
+/**
+ * Pure grading calculation obeying 5-option OMR Option E protocol.
+ * Zero random ranks or fabricated participant counts.
+ */
+export function evaluateTestAttempt(params: {
+  test: Test;
+  studentId: string;
+  studentName: string;
+  answers: Record<string, StudentResponseKey>;
+  questionStates: Record<string, QuestionState>;
+  startedAt: string;
+  nowMs?: number;
+}): TestAttempt {
+  const {
+    test,
+    studentId,
+    studentName,
+    answers,
+    questionStates,
+    startedAt,
+    nowMs = Date.now()
+  } = params;
+
+  let correctCount = 0;
+  let wrongCount = 0;
+  let unansweredCount = 0;
+  let obtainedMarks = 0;
+
+  test.questions.forEach(q => {
+    const userChoice = answers[q.id];
+
+    // OPTION E MANDATE:
+    // Option E represents leaving question unanswered in OMR format.
+    // Treated strictly as unanswered with 0 marks and 0 negative deduction.
+    if (!userChoice || userChoice === 'E') {
+      unansweredCount++;
+    } else if (userChoice === q.correctAnswer) {
+      correctCount++;
+      obtainedMarks += test.marksPerCorrect;
+    } else {
+      wrongCount++;
+      if (test.negativeMarkingEnabled) {
+        obtainedMarks -= test.negativeMarks;
+      }
+    }
+  });
+
+  obtainedMarks = Math.max(0, Math.round(obtainedMarks * 100) / 100);
+  const totalAttempted = correctCount + wrongCount;
+  const accuracy =
+    totalAttempted > 0 ? Math.round((correctCount / totalAttempted) * 1000) / 10 : 0;
+
+  const startMs = startedAt ? new Date(startedAt).getTime() : nowMs;
+  const validStartMs = Number.isFinite(startMs) ? startMs : nowMs;
+  const elapsedSeconds = Math.max(
+    1,
+    Math.min(test.durationMinutes * 60, Math.floor((nowMs - validStartMs) / 1000))
+  );
+
+  const attemptId = `att_${nowMs}_${Math.floor(Math.random() * 10000)}`;
+
+  return {
+    id: attemptId,
+    testId: test.id,
+    testTitle: test.title,
+    category: test.category,
+    subject: test.subject,
+    studentId,
+    studentName,
+    answers: { ...answers },
+    questionStates: { ...questionStates },
+    correctCount,
+    wrongCount,
+    unansweredCount,
+    obtainedMarks,
+    maxMarks: test.maxMarks,
+    accuracy,
+    timeTakenSeconds: elapsedSeconds,
+    startedAt: startedAt || new Date(validStartMs).toISOString(),
+    submittedAt: new Date(nowMs).toISOString()
+  };
 }
 
 /**
@@ -96,8 +175,7 @@ export async function checkStudentAttempted(testId: string, studentId: string): 
     }
     return null;
   } catch (error) {
-    console.warn('Attempt check fallback:', error);
-    // Local storage fallback for network drops
+    console.warn('Attempt check error:', error);
     const localAttemptKey = `attempt_completed_${testId}_${studentId}`;
     const cached = localStorage.getItem(localAttemptKey);
     if (cached) {
@@ -117,30 +195,25 @@ export async function checkStudentAttempted(testId: string, studentId: string): 
 export async function fetchCandidateSubmissions(studentId: string): Promise<TestAttempt[]> {
   if (!studentId) return [];
 
-  try {
-    const q = query(
-      collection(db, ATTEMPTS_COLLECTION),
-      where('studentId', '==', studentId)
-    );
-    const snap = await getDocs(q);
-    const results: TestAttempt[] = [];
-    snap.forEach(d => {
-      results.push(d.data() as TestAttempt);
-    });
-    // Sort descending by submission date
-    results.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
-    return results;
-  } catch (error) {
-    console.warn('Could not fetch candidate submissions from Firestore:', error);
-    return [];
-  }
+  const q = query(
+    collection(db, ATTEMPTS_COLLECTION),
+    where('studentId', '==', studentId)
+  );
+  const snap = await getDocs(q);
+  const results: TestAttempt[] = [];
+  snap.forEach(d => {
+    results.push(d.data() as TestAttempt);
+  });
+  results.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+  return results;
 }
 
 /**
  * Initializes a secure exam session with an authoritative server deadline.
+ * Never writes questions, correctAnswer, or explanations to localStorage.
  */
 export function initializeExamSession(
-  test: Test,
+  test: ActiveExamTest,
   studentId: string
 ): ActiveExamSession {
   const sessionKey = `active_session_${test.id}_${studentId}`;
@@ -154,7 +227,7 @@ export function initializeExamSession(
         return parsed;
       }
     } catch {
-      // Create fresh
+      // Create fresh session
     }
   }
 
@@ -189,21 +262,44 @@ export function persistExamSession(
   if (typeof sessionOrTestId === 'string') {
     const sId = studentId || 'anonymous';
     const sessionKey = `active_session_${sessionOrTestId}_${sId}`;
-    let existingObj: Record<string, any> = {};
+    let existingObj: Record<string, unknown> = {};
     try {
       const stored = localStorage.getItem(sessionKey);
       if (stored) existingObj = JSON.parse(stored);
-    } catch {}
-    const merged = { ...existingObj, testId: sessionOrTestId, studentId: sId, ...data };
+    } catch {
+      existingObj = {};
+    }
+    const merged: ActiveExamSession = {
+      testId: sessionOrTestId,
+      studentId: sId,
+      startedAt: String(data?.startedAt ?? existingObj.startedAt ?? ''),
+      serverDeadlineMs: Number(data?.serverDeadlineMs ?? existingObj.serverDeadlineMs ?? 0),
+      answers: (data?.answers ?? existingObj.answers ?? {}) as Record<string, StudentResponseKey>,
+      questionStates: (data?.questionStates ?? existingObj.questionStates ?? {}) as Record<string, QuestionState>,
+      currentQuestionIndex: Number(data?.currentQuestionIndex ?? existingObj.currentQuestionIndex ?? 0),
+      isSubmitted: Boolean(data?.isSubmitted ?? existingObj.isSubmitted ?? false),
+      lastSavedAt: data?.lastSavedAt
+    };
     localStorage.setItem(sessionKey, JSON.stringify(merged));
   } else {
     const sessionKey = `active_session_${sessionOrTestId.testId}_${sessionOrTestId.studentId}`;
-    localStorage.setItem(sessionKey, JSON.stringify(sessionOrTestId));
+    const sanitizedSession: ActiveExamSession = {
+      testId: sessionOrTestId.testId,
+      studentId: sessionOrTestId.studentId,
+      startedAt: sessionOrTestId.startedAt,
+      serverDeadlineMs: sessionOrTestId.serverDeadlineMs,
+      answers: sessionOrTestId.answers,
+      questionStates: sessionOrTestId.questionStates,
+      currentQuestionIndex: sessionOrTestId.currentQuestionIndex,
+      isSubmitted: sessionOrTestId.isSubmitted,
+      lastSavedAt: sessionOrTestId.lastSavedAt
+    };
+    localStorage.setItem(sessionKey, JSON.stringify(sanitizedSession));
   }
 }
 
 /**
- * Clears the session upon final test submission.
+ * Clears the active exam session upon final test submission or cancellation.
  */
 export function clearExamSession(testId: string, studentId: string): void {
   const sessionKey = `active_session_${testId}_${studentId}`;
@@ -211,9 +307,8 @@ export function clearExamSession(testId: string, studentId: string): void {
 }
 
 /**
- * Computes official test results against trusted question answer keys.
- * ENFORCES OPTION E RULE:
- * Option E ('Unattempted / No Response') always awards 0 marks and 0 negative penalty.
+ * Computes official test results against trusted question answer keys and persists to Firestore.
+ * Propagates Firestore errors instead of recording a fake local completion lock.
  */
 export async function calculateAndPersistTestResult(
   test: Test,
@@ -221,97 +316,120 @@ export async function calculateAndPersistTestResult(
   answers: Record<string, StudentResponseKey>,
   questionStates: Record<string, QuestionState>,
   startedAt: string,
-  serverDeadlineMs: number
+  _serverDeadlineMs: number,
+  platformSettings?: PlatformSettings
 ): Promise<TestAttempt> {
-  let correctCount = 0;
-  let wrongCount = 0;
-  let unansweredCount = 0;
-  let obtainedMarks = 0;
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error(
+      'आधिकारिक परीक्षा सबमिट करने के लिए आपका लॉगिन होना आवश्यक है। (Please sign in to submit and record your official test attempt.)'
+    );
+  }
 
-  test.questions.forEach(q => {
-    const userChoice = answers[q.id];
-
-    // OPTION E MANDATE:
-    // Option E represents leaving question unanswered in OMR format.
-    // Treated strictly as unanswered with 0 marks and 0 negative deduction.
-    if (!userChoice || userChoice === 'E') {
-      unansweredCount++;
-    } else if (userChoice === q.correctAnswer) {
-      correctCount++;
-      obtainedMarks += test.marksPerCorrect;
-    } else {
-      wrongCount++;
-      if (test.negativeMarkingEnabled) {
-        obtainedMarks -= test.negativeMarks;
-      }
-    }
+  const nowMs = Date.now();
+  const attemptResult = evaluateTestAttempt({
+    test,
+    studentId: currentUser.uid,
+    studentName: studentProfile.name || currentUser.displayName || 'Candidate Aspirant',
+    answers,
+    questionStates,
+    startedAt,
+    nowMs
   });
 
-  obtainedMarks = Math.max(0, Math.round(obtainedMarks * 100) / 100);
-  const totalAttempted = correctCount + wrongCount;
-  const accuracy =
-    totalAttempted > 0 ? Math.round((correctCount / totalAttempted) * 1000) / 10 : 0;
-
-  const now = Date.now();
-  const startMs = new Date(startedAt).getTime();
-  const elapsedSeconds = Math.max(1, Math.min(test.durationMinutes * 60, Math.floor((now - startMs) / 1000)));
-
-  const attemptId = `att_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-
-  const attemptResult: TestAttempt = {
-    id: attemptId,
-    testId: test.id,
-    testTitle: test.title,
-    category: test.category,
-    subject: test.subject,
-    studentId: studentProfile.uid,
-    studentName: studentProfile.name,
-    answers: { ...answers },
-    questionStates: { ...questionStates },
-    correctCount,
-    wrongCount,
-    unansweredCount,
-    obtainedMarks,
-    maxMarks: test.maxMarks,
-    accuracy,
-    timeTakenSeconds: elapsedSeconds,
-    startedAt,
-    submittedAt: new Date(now).toISOString(),
-    rank: Math.floor(Math.random() * 4) + 1,
-    totalParticipants: 420
-  };
-
-  // 1. Mark completed in localStorage for instantaneous offline lock
-  localStorage.setItem(`attempt_completed_${test.id}_${studentProfile.uid}`, JSON.stringify(attemptResult));
-  clearExamSession(test.id, studentProfile.uid);
-
-  // 2. Persist to Firestore /testAttempts/{attemptId}
+  // 1. Persist official attempt to Firestore /testAttempts/{attemptId} FIRST
   try {
-    if (auth.currentUser) {
-      await setDoc(doc(db, ATTEMPTS_COLLECTION, attemptId), attemptResult);
-
-      // Update Student Profile stats in Firestore
-      const profileRef = doc(db, PROFILES_COLLECTION, studentProfile.uid);
-      const pointsEarned = Math.round(obtainedMarks * 10);
-
-      // Note: Only official published tests contribute to global leaderboard points
-      // Private practice is never submitted through this flow
-      await setDoc(
-        profileRef,
-        {
-          uid: studentProfile.uid,
-          totalTestsAttempted: studentProfile.totalTestsAttempted + 1,
-          totalQuestionsSolved: studentProfile.totalQuestionsSolved + (correctCount + wrongCount),
-          lifetimePoints: studentProfile.lifetimePoints + pointsEarned,
-          currentDailyPoints: test.category === 'Daily Test' ? studentProfile.currentDailyPoints + pointsEarned : studentProfile.currentDailyPoints,
-          currentWeeklyPoints: test.category === 'Weekly Test' ? studentProfile.currentWeeklyPoints + pointsEarned : studentProfile.currentWeeklyPoints
-        },
-        { merge: true }
-      );
-    }
+    await setDoc(doc(db, ATTEMPTS_COLLECTION, attemptResult.id), attemptResult);
   } catch (error) {
-    console.error('Failed to write attempt to Firestore:', error);
+    handleFirestoreError(error, OperationType.WRITE, ATTEMPTS_COLLECTION);
   }
+
+  const pointsEarned = Math.round(attemptResult.obtainedMarks * 10);
+  const solvedCount = attemptResult.correctCount + attemptResult.wrongCount;
+  const newLifetimePoints = studentProfile.lifetimePoints + pointsEarned;
+  const newTotalTests = studentProfile.totalTestsAttempted + 1;
+  const newTotalSolved = studentProfile.totalQuestionsSolved + solvedCount;
+
+  const isDailyCycleActive = !platformSettings?.dailyResetAt || nowMs >= new Date(platformSettings.dailyResetAt).getTime();
+  const isWeeklyCycleActive = !platformSettings?.weeklyResetAt || nowMs >= new Date(platformSettings.weeklyResetAt).getTime();
+
+  const updatedDailyPoints = isDailyCycleActive
+    ? studentProfile.currentDailyPoints + (test.category === 'Daily Test' ? pointsEarned : pointsEarned)
+    : 0;
+  const updatedWeeklyPoints = isWeeklyCycleActive
+    ? studentProfile.currentWeeklyPoints + pointsEarned
+    : 0;
+
+  // 2. Persist updated Student Profile stats in Firestore
+  try {
+    await setDoc(
+      doc(db, PROFILES_COLLECTION, currentUser.uid),
+      {
+        uid: currentUser.uid,
+        totalTestsAttempted: newTotalTests,
+        totalQuestionsSolved: newTotalSolved,
+        lifetimePoints: newLifetimePoints,
+        currentDailyPoints: updatedDailyPoints,
+        currentWeeklyPoints: updatedWeeklyPoints
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, PROFILES_COLLECTION);
+  }
+
+  // 3. Persist non-PII public leaderboard standing in /leaderboardEntries/{uid}
+  try {
+    const lbRef = doc(db, LEADERBOARD_COLLECTION, currentUser.uid);
+    const existingLb = await getDoc(lbRef);
+    const prev = existingLb.exists() ? (existingLb.data() as Partial<LeaderboardEntryDoc>) : {};
+
+    const dailyAnchorMs = Math.max(
+      nowMs - 24 * 60 * 60 * 1000,
+      platformSettings?.dailyResetAt ? new Date(platformSettings.dailyResetAt).getTime() : 0
+    );
+    const weeklyAnchorMs = Math.max(
+      nowMs - 7 * 24 * 60 * 60 * 1000,
+      platformSettings?.weeklyResetAt ? new Date(platformSettings.weeklyResetAt).getTime() : 0
+    );
+
+    const prevDailyValid =
+      typeof prev.lastDailyUpdatedAt === 'string' &&
+      new Date(prev.lastDailyUpdatedAt).getTime() >= dailyAnchorMs;
+    const prevWeeklyValid =
+      typeof prev.lastWeeklyUpdatedAt === 'string' &&
+      new Date(prev.lastWeeklyUpdatedAt).getTime() >= weeklyAnchorMs;
+
+    const lbPayload: LeaderboardEntryDoc = {
+      id: currentUser.uid,
+      studentId: currentUser.uid,
+      name: (studentProfile.name || currentUser.displayName || 'Candidate Aspirant').slice(0, 120),
+      avatar:
+        studentProfile.photoURL ||
+        currentUser.photoURL ||
+        `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(currentUser.uid)}`,
+      lifetimePoints: (Number(prev.lifetimePoints) || 0) + pointsEarned,
+      dailyPoints: (prevDailyValid ? Number(prev.dailyPoints) || 0 : 0) + pointsEarned,
+      weeklyPoints: (prevWeeklyValid ? Number(prev.weeklyPoints) || 0 : 0) + pointsEarned,
+      lastDailyUpdatedAt: new Date(nowMs).toISOString(),
+      lastWeeklyUpdatedAt: new Date(nowMs).toISOString(),
+      testsAttempted: (Number(prev.testsAttempted) || 0) + 1,
+      totalCorrect: (Number(prev.totalCorrect) || 0) + attemptResult.correctCount,
+      totalAttemptedQuestions: (Number(prev.totalAttemptedQuestions) || 0) + solvedCount,
+      updatedAt: new Date(nowMs).toISOString()
+    };
+
+    await setDoc(lbRef, lbPayload, { merge: true });
+  } catch (error) {
+    console.warn('Leaderboard sync warning:', error);
+  }
+
+  // 4. Only after verified Firestore persistence, store completion lock locally and clear session
+  localStorage.setItem(
+    `attempt_completed_${test.id}_${currentUser.uid}`,
+    JSON.stringify(attemptResult)
+  );
+  clearExamSession(test.id, currentUser.uid);
 
   return attemptResult;
 }

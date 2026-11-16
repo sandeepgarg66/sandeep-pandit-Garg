@@ -49,6 +49,73 @@ async function resolveVerifiedCallerAdmin(
   };
 }
 
+export async function resolveVerifiedEducator(
+  callerToken: VerifiedCallerToken,
+  store: RoleStoreAdapter
+): Promise<{
+  uid: string;
+  email: string | null;
+  name: string;
+  role: 'admin' | 'teacher';
+  accountStatus: string;
+}> {
+  const callerRecord = await store.getUser(callerToken.uid);
+  const callerIsOwner = isRootOwnerEmail(callerToken.email) && callerToken.emailVerified;
+
+  if (callerIsOwner) {
+    return {
+      uid: callerToken.uid,
+      email: callerToken.email,
+      name: callerRecord?.displayName || callerRecord?.name || callerToken.name || 'Owner Admin',
+      role: 'admin',
+      accountStatus: 'Active'
+    };
+  }
+
+  const authoritativeStatus = callerRecord?.accountStatus || 'Active';
+  if (authoritativeStatus === 'Suspended') {
+    throw new RoleServiceHttpError(
+      403,
+      'Account Suspended: Your account is currently suspended. / आपका खाता निलंबित है।'
+    );
+  }
+
+  const role = callerRecord?.role || null;
+  if (role === 'admin') {
+    return {
+      uid: callerToken.uid,
+      email: callerToken.email,
+      name: callerRecord?.displayName || callerRecord?.name || callerToken.name || 'Admin',
+      role: 'admin',
+      accountStatus: authoritativeStatus
+    };
+  }
+
+  if (role === 'teacher') {
+    let teacherProfileStatus = callerRecord?.teacherApprovalStatus || 'Pending';
+    if (teacherProfileStatus !== 'Approved') {
+      const teacherProfile = await store.getTeacherProfile(callerToken.uid);
+      if (teacherProfile?.status) {
+        teacherProfileStatus = teacherProfile.status;
+      }
+    }
+    if (teacherProfileStatus === 'Approved') {
+      return {
+        uid: callerToken.uid,
+        email: callerToken.email,
+        name: callerRecord?.displayName || callerRecord?.name || callerToken.name || 'Educator',
+        role: 'teacher',
+        accountStatus: authoritativeStatus
+      };
+    }
+  }
+
+  throw new RoleServiceHttpError(
+    403,
+    'Forbidden: Active, Admin-approved Teacher or Admin access is required. / केवल सक्रिय और स्वीकृत शिक्षक या एडमिन ही यह सुविधा उपयोग कर सकते हैं।'
+  );
+}
+
 function buildAuditId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 }
